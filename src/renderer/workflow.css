@@ -1,0 +1,2581 @@
+/* Workflow Area Styles */
+
+.workflow-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #1e1e1e;
+}
+
+/* Layout principale con sidebar a sinistra, contenuto centrale e sidebar a destra */
+.workflow-main-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Sidebar sinistra per la navigazione file */
+.workflow-left-sidebar {
+  width: 280px;
+  height: 100%;
+  background-color: #252525;
+  border-right: 1px solid #3a3a3a;
+  overflow-y: auto;
+  transition: width 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 20;
+}
+
+/* Contenitore centrale che include toolbar e workspace */
+.workflow-center-container {
+  flex: 1;
+  display: flex;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Toolbar principale in alto */
+.workflow-main-toolbar {
+  height: 60px;
+  background-color: #252525;
+  border-bottom: 1px solid #3a3a3a;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 20px;
+  z-index: 20;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Sezioni nella toolbar */
+.toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  height: 100%;
+  border-right: 1px solid #3a3a3a;
+}
+
+.toolbar-section:last-child {
+  border-right: none;
+}
+
+/* Pulsanti nella toolbar */
+.toolbar-btn {
+  background-color: #3d3d3d;
+  border: none;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.toolbar-btn:hover {
+  background-color: #4a4a4a;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Toolbar AI nella toolbar principale */
+.workflow-ai-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding-left: 20px;
+  margin-left: auto;
+  height: 100%;
+}
+
+.ai-toolbar-title {
+  color: #e0e0e0;
+  font-size: 15px;
+  font-weight: 500;
+  margin-right: 5px;
+}
+
+/* Main workspace area */
+.workflow-workspace {
+  flex: 1;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  padding: 0;
+  background-size: 25px 25px;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  cursor: default;
+}
+
+/* Stile per il cursore durante il panning */
+.workflow-workspace.panning {
+  cursor: grabbing;
+}
+
+/* Right sidebar with AI chat */
+.workflow-right-sidebar {
+  width: 300px;
+  height: 100%;
+  background-color: #252525;
+  border-left: 1px solid #3a3a3a;
+  overflow: hidden;
+  transition: width 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 20;
+}
+
+.workflow-right-sidebar.collapsed {
+  width: 0;
+  border-left: none;
+}
+
+/* Toggle right sidebar button */
+.toggle-right-sidebar-btn {
+  position: absolute;
+  top: 50%;
+  left: -16px;
+  transform: translateY(-50%);
+  background-color: #252525;
+  border: 1px solid #3a3a3a;
+  border-radius: 50% 0 0 50%;
+  padding: 8px 5px 8px 4px;
+  color: #888;
+  font-size: 16px;
+  cursor: pointer;
+  z-index: 25;
+  height: 36px;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: -2px 0 6px rgba(0, 0, 0, 0.15);
+}
+
+.toggle-right-sidebar-btn:hover {
+  color: #fff;
+  background-color: #333;
+}
+
+/* AI Chat nella sidebar destra */
+.workflow-ai-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.ai-chat-header {
+  padding: 15px;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.ai-chat-header h3 {
+  margin: 0;
+  color: #e0e0e0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.ai-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.ai-message {
+  padding: 10px 15px;
+  border-radius: 10px;
+  max-width: 85%;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.ai-message.system {
+  background-color: #2c2c2c;
+  color: #e0e0e0;
+  align-self: flex-start;
+}
+
+.ai-message.user {
+  background-color: #3d4c8c;
+  color: #fff;
+  align-self: flex-end;
+}
+
+.ai-chat-input {
+  padding: 15px;
+  border-top: 1px solid #3a3a3a;
+  display: flex;
+  gap: 10px;
+}
+
+.ai-chat-input textarea {
+  flex: 1;
+  resize: none;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  background-color: #333;
+  color: #e0e0e0;
+  padding: 8px 12px;
+  font-size: 14px;
+  min-height: 60px;
+  outline: none;
+}
+
+.ai-chat-input textarea:focus {
+  border-color: #5c5cff;
+}
+
+.ai-chat-input button {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #5c5cff;
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  align-self: flex-end;
+  margin-bottom: 8px;
+}
+
+.ai-chat-input button:hover {
+  background-color: #4a4aff;
+}
+
+/* Minimap nell'angolo in basso a destra */
+.workflow-minimap {
+  position: absolute;
+  bottom: 15px;
+  right: 15px;
+  width: 220px;
+  height: 140px;
+  background-color: rgba(30, 30, 30, 0.9);
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  z-index: 50;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+.workflow-minimap-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+}
+
+.workflow-minimap-viewport {
+  position: absolute;
+  border: 2px solid #5c5cff;
+  background-color: rgba(92, 92, 255, 0.1);
+  cursor: move;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.minimap-note {
+  position: absolute;
+  background-color: #5c5cff;
+  border-radius: 4px;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.3);
+}
+
+.minimap-node {
+  position: absolute;
+  background-color: #ff5c5c;
+  border-radius: 3px;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Nodi AI e connettori */
+.workspace-ai-node {
+  position: absolute;
+  background-color: #2d2d2d;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  width: 240px;
+  z-index: 10;
+  user-select: none;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  transition: box-shadow 0.2s ease, transform 0.1s ease;
+}
+
+.workspace-ai-node.dragging {
+  will-change: transform;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  transition: none;
+  cursor: grabbing;
+  z-index: 20;
+}
+
+.ai-node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  background-color: #5c5cff;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: move;
+}
+
+.ai-component-content {
+  padding: 15px;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e0e0e0;
+  font-size: 14px;
+}
+
+.node-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.node-action {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.node-action:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+  color: white;
+}
+
+.node-connector {
+  position: absolute;
+  height: 2px;
+  background-color: #5c5cff;
+  transform-origin: left center;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.node-connector::after {
+  content: '';
+  position: absolute;
+  right: -5px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  background-color: #5c5cff;
+  border-radius: 50%;
+}
+
+.node-connector-port {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #444;
+  border: 2px solid #5c5cff;
+  cursor: pointer;
+  z-index: 15;
+}
+
+.node-connector-port:hover {
+  background-color: #5c5cff;
+}
+
+.node-connector-port.input {
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.node-connector-port.output {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Note styles with hardware acceleration */
+.workspace-note {
+  position: absolute;
+  background-color: #2d2d2d;
+  border: 1px solid #3a3a3a;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  min-width: 280px;
+  min-height: 150px;
+  user-select: none;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  transition: box-shadow 0.2s ease, transform 0.1s ease;
+}
+
+/* Ottimizzazione per note trascinate */
+.workspace-note.dragging {
+  will-change: transform;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  transition: none; /* Disabilita transizioni durante il drag per prestazioni migliori */
+  cursor: grabbing;
+}
+
+.workspace-note.selected {
+  border: 1px solid #5c5cff;
+  box-shadow: 0 0 0 2px rgba(92, 92, 255, 0.3);
+}
+
+.workspace-note.resizing {
+  will-change: transform, width, height;
+  transition: none; /* Disabilita transizioni durante il resize */
+}
+
+/* AI Automation nodes - fixed position and shape */
+.workspace-ai-node {
+  position: absolute;
+  background-color: #252525;
+  border: 2px solid #5c5cff;
+  border-radius: 8px;
+  box-shadow: 0 3px 12px rgba(92, 92, 255, 0.3);
+  width: 180px;
+  height: 90px;
+  user-select: none;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}
+
+.ai-node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #5c5cff;
+  color: white;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.ai-node-content {
+  flex: 1;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e0e0e0;
+  font-size: 12px;
+}
+
+/* Connector lines between nodes */
+.node-connector {
+  position: absolute;
+  height: 2px;
+  background-color: #5c5cff;
+  transform-origin: left center;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.node-connector::after {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: -4px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #5c5cff;
+}
+
+.node-connector-port {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #5c5cff;
+  border: 2px solid #252525;
+  z-index: 16;
+  cursor: pointer;
+}
+
+.node-connector-port:hover {
+  transform: scale(1.2);
+}
+
+.node-connector-port.input {
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.node-connector-port.output {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Document mode styles */
+.workflow-workspace.document-mode {
+  background-color: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+}
+
+.document-top-toolbar {
+  width: 100%;
+  height: 48px;
+  background-color: #fff;
+  border-bottom: 1px solid #dadce0;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  justify-content: space-between;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.document-top-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.document-top-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.document-title-container {
+  position: relative;
+}
+
+.document-title-input {
+  font-size: 18px;
+  font-weight: 400;
+  color: #202124;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 12px;
+  background-color: transparent;
+  min-width: 240px;
+  transition: all 0.2s;
+}
+
+.document-title-input:hover {
+  border-color: #dadce0;
+  background-color: #f8f9fa;
+}
+
+.document-title-input:focus {
+  border-color: #4285f4;
+  outline: none;
+  background-color: #fff;
+  box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+}
+
+.document-save-status {
+  color: #5f6368;
+  font-size: 13px;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.document-format-toolbar {
+  width: 100%;
+  height: 42px;
+  background-color: #fff;
+  border-bottom: 1px solid #dadce0;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 4px;
+  overflow-x: auto;
+  z-index: 90;
+  position: sticky;
+  top: 48px;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background-color: #dadce0;
+  margin: 0 6px;
+}
+
+.format-select {
+  height: 32px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  background-color: #fff;
+  color: #202124;
+  font-size: 13px;
+  padding: 0 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.format-select:hover {
+  border-color: #aaa;
+  background-color: #f8f9fa;
+}
+
+.format-select:focus {
+  outline: none;
+  border-color: #4285f4;
+  box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+}
+
+.document-toolbar-btn {
+  background: none;
+  border: none;
+  color: #5f6368;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 4px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.document-toolbar-btn:hover,
+.document-toolbar-btn.hover {
+  background-color: #f1f3f4;
+  color: #202124;
+}
+
+.document-toolbar-btn:active,
+.document-toolbar-btn.active {
+  background-color: #e8f0fe;
+  color: #4285f4;
+}
+
+.doc-back-btn {
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  background-color: #f1f3f4;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.doc-back-btn:hover {
+  background-color: #e8f0fe;
+  transform: scale(1.05);
+}
+
+.document-more-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid #dadce0;
+  background-color: #f8f9fa;
+}
+
+.document-more-btn:hover {
+  background-color: #f1f3f4;
+  border-color: #c0c0c0;
+}
+
+.toolbar-color-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.toolbar-color-btn:hover {
+  background-color: #f1f3f4;
+}
+
+.document-add-btn button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #f8f9fa;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  color: #5f6368;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.document-add-btn button:hover {
+  background-color: #f1f3f4;
+  border-color: #c0c0c0;
+}
+
+.document-content {
+  flex: 1;
+  padding: 40px;
+  overflow-y: auto;
+  background-color: #191919;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.document-container {
+  background-color: #252525;
+  border-radius: 6px;
+  padding: 40px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  width: 100%;
+  max-width: 750px;
+  margin: 0 auto;
+}
+
+/* Document ruler */
+.document-ruler {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 20px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #dadce0;
+  padding: 0 1in;
+}
+
+.ruler-marker {
+  position: absolute;
+  width: 1px;
+  height: 8px;
+  background-color: #dadce0;
+  bottom: 0;
+}
+
+.ruler-marker.major {
+  height: 12px;
+  background-color: #5f6368;
+}
+
+.ruler-number {
+  position: absolute;
+  font-size: 9px;
+  color: #5f6368;
+  top: 2px;
+  transform: translateX(-50%);
+}
+
+/* Left sidebar for document outline */
+.document-sidebar {
+  position: absolute;
+  left: 0;
+  top: 90px;
+  width: 250px;
+  bottom: 0;
+  background-color: #fff;
+  border-right: 1px solid #dadce0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  z-index: 80;
+}
+
+.document-sidebar-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #dadce0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f8f9fa;
+}
+
+.document-sidebar-title {
+  font-size: 14px;
+  color: #202124;
+  font-weight: 500;
+}
+
+.document-outline {
+  padding: 8px 0;
+  overflow-y: auto;
+}
+
+.document-sidebar-section {
+  margin-bottom: 16px;
+}
+
+.document-sidebar-section-title {
+  padding: 4px 16px;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #a0a0a0;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.outline-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #bbb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.outline-item:hover {
+  background-color: #2c2c2c;
+  color: #e0e0e0;
+}
+
+.outline-item.active {
+  background-color: #333;
+  color: #5c5cff;
+}
+
+.outline-item i {
+  width: 16px;
+  text-align: center;
+  opacity: 0.7;
+}
+
+/* Document mode style overrides for blocks */
+.document-mode-overlay .note-block {
+  border: 1px solid transparent;
+  margin-bottom: 12px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  padding: 8px;
+}
+
+.document-mode-overlay .note-block:hover {
+  border-color: #dadce0;
+}
+
+.document-mode-overlay .note-block.focused {
+  border-color: #4285f4;
+  box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+}
+
+.document-mode-overlay .block-content {
+  color: #202124;
+  min-height: 20px;
+  outline: none;
+  transition: background-color 0.2s;
+}
+
+.document-mode-overlay .block-content:focus {
+  background-color: rgba(66, 133, 244, 0.05);
+}
+
+.document-mode-overlay .block-content[data-placeholder]:empty:before {
+  color: #80868b;
+}
+
+.document-mode-overlay .block-heading .block-content {
+  font-size: 24px;
+  font-weight: 500;
+  margin: 24px 0 16px 0;
+  color: #202124;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f3f4;
+}
+
+.document-mode-overlay .block-subheading .block-content {
+  font-size: 18px;
+  font-weight: 500;
+  margin: 18px 0 12px 0;
+  color: #202124;
+}
+
+.document-mode-overlay .block-callout {
+  background-color: #e8f0fe;
+  border-left: 4px solid #4285f4;
+  padding: 12px 16px;
+}
+
+.document-mode-overlay .block-quote {
+  border-left: 3px solid #80868b;
+  padding-left: 16px;
+  font-style: italic;
+  color: #5f6368;
+}
+
+/* Folder tree styles */
+.workflow-folder-tree {
+  width: 250px;
+  height: 100%;
+  background-color: #252525;
+  border-right: 1px solid #3a3a3a;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 20;
+}
+
+.folder-tree-header {
+  padding: 15px;
+  border-bottom: 1px solid #3a3a3a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.folder-tree-title {
+  color: #e0e0e0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.folder-tree-content {
+  padding: 10px;
+  flex: 1;
+}
+
+.folder-item {
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #e0e0e0;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.folder-item:hover {
+  background-color: #333;
+}
+
+.folder-item.active {
+  background-color: rgba(92, 92, 255, 0.2);
+}
+
+.folder-toggle {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #888;
+}
+
+.folder-icon {
+  color: #888;
+  font-size: 14px;
+}
+
+.file-icon {
+  color: #e0e0e0;
+  font-size: 14px;
+}
+
+/* Stile per le note in modalità Mural */
+.note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #3a3a3a;
+  cursor: move;
+  background-color: #333;
+}
+
+/* Note title styles for editing */
+.note-title {
+  color: #e0e0e0;
+  font-weight: 500;
+  font-size: 14px;
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  min-width: 50px;
+  transition: all 0.2s ease;
+  outline: none;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-title:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.note-title:focus, 
+.note-title.editing {
+  border-color: #5c5cff;
+  background-color: #3a3a3a;
+  outline: none;
+  white-space: normal;
+  max-width: none;
+  overflow: visible;
+}
+
+.note-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.note-action {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.note-action:hover {
+  color: #fff;
+  background-color: #3d3d3d;
+}
+
+/* Optimize for note content rendering */
+.note-content {
+  flex: 1;
+  padding: 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: #2d2d2d;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Block Styles - Ottimizzazioni per il dragging */
+.note-block {
+  position: relative;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: stretch;
+  background-color: #333;
+  transition: background-color 0.2s ease;
+}
+
+.note-block:hover {
+  background-color: #3a3a3a;
+}
+
+/* Stile per i blocchi durante il drag */
+.note-block.dragging {
+  background-color: #3d3d3d !important;
+  border: 1px dashed #5c5cff !important;
+  opacity: 0.85;
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
+}
+
+/* Stile per il placeholder durante il trascinamento */
+.block-drag-placeholder {
+  background-color: rgba(92, 92, 255, 0.15);
+  border: 2px dashed #5c5cff;
+  border-radius: 6px;
+  margin: 8px 0;
+  min-height: 24px;
+  padding: 8px;
+}
+
+/* Stile per il cursore durante il trascinamento */
+body.dragging-block {
+  cursor: grabbing !important;
+}
+
+body.dragging-block * {
+  cursor: grabbing !important;
+}
+
+/* Stile per l'handle di trascinamento */
+.block-drag-handle {
+  cursor: grab;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.note-block:hover .block-drag-handle {
+  opacity: 0.7;
+}
+
+.block-drag-handle:hover {
+  opacity: 1;
+  color: #5c5cff;
+}
+
+/* Stile per le note target durante il trascinamento */
+.workspace-note.drag-target {
+  box-shadow: 0 0 0 2px rgba(92, 92, 255, 0.6);
+  background-color: rgba(92, 92, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+.block-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 4px;
+}
+
+.block-action {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.note-block:hover .block-action {
+  opacity: 1;
+}
+
+.block-action:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* Overlay per il resize */
+.resize-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  background-color: transparent;
+}
+
+/* Resize handles */
+.note-resize-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  font-size: 10px;
+  z-index: 50;
+}
+
+.note-resize-handle:hover {
+  color: #5c5cff;
+}
+
+/* Handle per ridimensionamento in tutte le direzioni */
+.resize-handle {
+  position: absolute;
+  z-index: 50;
+  background-color: transparent;
+}
+
+/* Angoli */
+.resize-handle.top-left {
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+}
+
+.resize-handle.top-right {
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+}
+
+.resize-handle.bottom-left {
+  bottom: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+}
+
+.resize-handle.bottom-right {
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+}
+
+/* Bordi */
+.resize-handle.top {
+  top: 0;
+  left: 10px;
+  right: 10px;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.resize-handle.right {
+  top: 10px;
+  right: 0;
+  bottom: 10px;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.resize-handle.bottom {
+  bottom: 0;
+  left: 10px;
+  right: 10px;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.resize-handle.left {
+  top: 10px;
+  left: 0;
+  bottom: 10px;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+/* Stili per i diversi tipi di blocchi */
+.block-heading .block-content {
+  font-size: 18px;
+  font-weight: bold;
+  margin: 4px 0;
+}
+
+.block-subheading .block-content {
+  font-size: 16px;
+  font-weight: bold;
+  margin: 2px 0;
+}
+
+.block-to-do {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.block-to-do input[type="checkbox"] {
+  margin-top: 5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background-color: transparent;
+  border: 1px solid #555;
+  cursor: pointer;
+}
+
+.block-to-do .block-content {
+  flex: 1;
+}
+
+.block-callout {
+  background-color: rgba(92, 92, 255, 0.1);
+  border-left: 3px solid #5c5cff;
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: 4px;
+}
+
+.block-callout .block-content {
+  min-height: 24px;
+}
+
+.block-quote {
+  border-left: 3px solid #888;
+  padding-left: 12px;
+  font-style: italic;
+  color: #ccc;
+  margin: 4px 0;
+}
+
+.block-toggle {
+  margin: 4px 0;
+}
+
+.block-toggle-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.block-toggle-icon {
+  transition: transform 0.2s;
+}
+
+.block-toggle.collapsed .block-toggle-icon {
+  transform: rotate(-90deg);
+}
+
+.block-toggle-content {
+  margin-left: 20px;
+  padding-top: 4px;
+  display: block;
+}
+
+.block-toggle.collapsed .block-toggle-content {
+  display: none;
+}
+
+.block-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 4px 0;
+  border: 1px solid #3a3a3a;
+}
+
+.block-table th,
+.block-table td {
+  border: 1px solid #3a3a3a;
+  padding: 8px;
+  text-align: left;
+}
+
+.block-table th {
+  background-color: #333;
+}
+
+.block-table tr:nth-child(even) {
+  background-color: #2a2a2a;
+}
+
+/* Stile per il menu di aggiunta blocchi */
+.add-block-menu {
+  position: absolute;
+  background-color: #252525;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  width: 280px;
+  z-index: 1000;
+}
+
+.add-block-menu-title {
+  padding: 8px 12px;
+  border-bottom: 1px solid #3a3a3a;
+  font-weight: bold;
+  color: #e0e0e0;
+}
+
+.add-block-menu-search {
+  padding: 8px 12px;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.add-block-menu-search input {
+  width: 100%;
+  background-color: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 6px 10px;
+  color: #e0e0e0;
+  font-size: 14px;
+}
+
+.add-block-menu-search input:focus {
+  outline: none;
+  border-color: #5c5cff;
+}
+
+.add-block-menu-section {
+  padding: 6px 0;
+}
+
+.add-block-menu-section-title {
+  padding: 4px 12px;
+  font-size: 12px;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.add-block-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+
+.add-block-item-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #e0e0e0;
+}
+
+.add-block-item-description {
+  font-size: 11px;
+  color: #888;
+  margin-left: 30px;
+}
+
+.add-block-item:hover {
+  background-color: #3a3a3a;
+}
+
+.add-block-item-kbd {
+  margin-left: auto;
+  font-size: 11px;
+  color: #888;
+  background-color: #333;
+  padding: 2px 4px;
+  border-radius: 3px;
+  border: 1px solid #444;
+}
+
+/* Sidebar styles - more like Notion */
+.sidebar-header {
+  padding: 15px;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.sidebar-title {
+  color: #e0e0e0;
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.sidebar-sections {
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.sidebar-section {
+  border-bottom: 1px solid #3a3a3a;
+  padding-bottom: 15px;
+}
+
+.sidebar-section-title {
+  color: #888;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.sidebar-section-item {
+  display: flex;
+  align-items: center;
+  padding: 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #e0e0e0;
+  gap: 10px;
+}
+
+.sidebar-section-item:hover {
+  background-color: #3a3a3a;
+}
+
+.sidebar-section-item i {
+  width: 20px;
+  text-align: center;
+  color: #aaa;
+}
+
+.workflow-fullscreen {
+  flex: 1;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.block-content {
+  outline: none;
+  min-height: 22px;
+  padding: 3px 0;
+  cursor: text;
+  flex: 1;
+}
+
+.block-content[data-placeholder]:empty:before {
+  content: attr(data-placeholder);
+  color: #888;
+  cursor: text;
+}
+
+/* Stili aggiuntivi per i blocchi di codice */
+.block-code {
+  background-color: #2a2a2a;
+  border-radius: 4px;
+  font-family: monospace;
+  padding: 8px;
+  border-left: 3px solid #5c5cff;
+  margin: 4px 0;
+}
+
+.block-code .block-content {
+  white-space: pre-wrap;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+/* Stili per il blocco divider */
+.block-divider {
+  padding: 6px 0;
+}
+
+.block-divider hr {
+  border: none;
+  height: 1px;
+  background-color: #3a3a3a;
+  margin: 8px 0;
+}
+
+/* Stili per il blocco immagine */
+.block-image-container {
+  margin: 4px 0;
+}
+
+.block-image {
+  max-width: 100%;
+  border-radius: 4px;
+  cursor: pointer;
+  display: block;
+  margin: 4px 0;
+}
+
+/* Stili per aggiungere una classe focused al blocco attivo */
+.note-block.focused {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Workflow AI Tool */
+.workflow-ai-tool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--background-tertiary);
+  border-radius: var(--border-radius);
+  padding: 5px 10px;
+  color: var(--text-primary);
+  cursor: grab;
+  transition: all var(--transition-speed) ease;
+  border: 1px solid var(--border-color);
+}
+
+.workflow-ai-tool:hover {
+  background: var(--background-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.workflow-ai-tool-icon {
+  width: 20px;
+  height: 20px;
+  background-color: var(--accent-primary);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 12px;
+}
+
+.workflow-ai-tool-label {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+/* Toolbar verticale a sinistra */
+.workflow-vertical-toolbar {
+  width: 60px;
+  height: 100%;
+  background-color: var(--background-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+  gap: 12px;
+  z-index: 30;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+}
+
+.workflow-vertical-toolbar .toolbar-btn {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  font-size: 18px;
+  justify-content: center;
+  background-color: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.workflow-vertical-toolbar .toolbar-btn:hover {
+  background-color: var(--background-hover);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+.workflow-vertical-toolbar .toolbar-btn.active {
+  background-color: var(--accent-primary);
+  color: #fff;
+  border-color: var(--accent-primary);
+}
+
+.workflow-vertical-toolbar .toolbar-separator {
+  width: 60%;
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 12px 0;
+}
+
+/* Document insert menu styles */
+.document-insert-menu {
+  background-color: #fff;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  border-radius: 8px;
+  overflow: hidden;
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #dadce0;
+  animation: menuFadeIn 0.15s ease;
+}
+
+@keyframes menuFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.document-insert-item {
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.document-insert-item:hover {
+  background-color: #f1f3f4;
+}
+
+.document-insert-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5f6368;
+  background-color: #f8f9fa;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.document-insert-content {
+  flex: 1;
+}
+
+.document-insert-title {
+  font-size: 14px;
+  color: #202124;
+  margin-bottom: 2px;
+  font-weight: 500;
+}
+
+.document-insert-description {
+  font-size: 12px;
+  color: #5f6368;
+}
+
+/* Document table styles */
+.document-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+
+.document-table th,
+.document-table td {
+  border: 1px solid #dadce0;
+  padding: 8px;
+  min-width: 100px;
+  position: relative;
+}
+
+.document-table th {
+  background-color: #f8f9fa;
+  font-weight: 500;
+}
+
+.document-table th .block-content,
+.document-table td .block-content {
+  min-height: 18px;
+  outline: none;
+}
+
+/* Code block styles */
+.block-code {
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #dadce0;
+  margin: 16px 0;
+  overflow: hidden;
+}
+
+.block-code-header {
+  padding: 8px 12px;
+  background-color: #f1f3f4;
+  border-bottom: 1px solid #dadce0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.code-language-select {
+  background: none;
+  border: none;
+  color: #5f6368;
+  font-size: 13px;
+  padding: 4px;
+  outline: none;
+}
+
+.block-code-content {
+  padding: 16px;
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 14px;
+  color: #202124;
+  background-color: transparent;
+}
+
+.block-code .block-content {
+  font-family: 'Consolas', 'Courier New', monospace;
+  outline: none;
+}
+
+/* Checklist styles */
+.checklist-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.checklist-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  border: 2px solid #5f6368;
+  border-radius: 2px;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  position: relative;
+  background-color: #fff;
+}
+
+.checklist-checkbox:checked {
+  background-color: #4285f4;
+  border-color: #4285f4;
+}
+
+.checklist-checkbox:checked::after {
+  content: '✓';
+  position: absolute;
+  top: -2px;
+  left: 3px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.checklist-item .block-content {
+  flex: 1;
+  min-height: 18px;
+}
+
+/* Block link styles */
+.block-link-container {
+  margin: 16px 0;
+}
+
+.block-link-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  text-decoration: none;
+  margin-bottom: 8px;
+  transition: background-color 0.2s;
+}
+
+.block-link-preview:hover {
+  background-color: #f8f9fa;
+}
+
+.block-link-favicon {
+  width: 32px;
+  height: 32px;
+  background-color: #4285f4;
+  color: #fff;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.block-link-content {
+  flex: 1;
+}
+
+.block-link-title {
+  font-size: 14px;
+  color: #202124;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.block-link-url {
+  font-size: 12px;
+  color: #5f6368;
+}
+
+/* Document sidebar hidden state */
+.document-sidebar.hidden {
+  display: none;
+}
+
+/* Table and list styles */
+.document-mode ul,
+.document-mode ol {
+  margin: 0;
+  padding-left: 24px;
+}
+
+.document-mode ul li,
+.document-mode ol li {
+  margin-bottom: 4px;
+}
+
+.document-mode ul li .block-content,
+.document-mode ol li .block-content {
+  min-height: 18px;
+}
+
+/* Document mode image styles */
+.document-mode .block-image-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.document-mode .block-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* Document mode overlay */
+.document-mode-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin-left: 0; /* Rimosso lo spazio per coprire l'intera UI */
+  z-index: 1000;
+  background-color: #191919;
+  color: #e6e6e6;
+  display: flex;
+  flex-direction: column;
+  animation: fadeIn 0.2s ease-out;
+  border-left: 1px solid #333;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.document-main-area {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  padding: 30px 0;
+  background-color: #191919;
+  background-image: linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+  transition: background 0.3s ease;
+}
+
+/* Posizione della sidebar nell'overlay */
+.document-mode-overlay .document-sidebar {
+  position: absolute;
+  left: 0;
+  top: 90px;
+  width: 250px;
+  bottom: 0;
+  background-color: #1e1e1e;
+  border-right: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  z-index: 80;
+  animation: slideIn 0.3s ease;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+  transition: transform 0.3s ease;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+/* Nascondi la sidebar quando necessario */
+.document-mode-overlay .document-sidebar.hidden {
+  transform: translateX(-100%);
+}
+
+/* Stili per la sidebar */
+.document-sidebar-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #333;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #252525;
+}
+
+.document-sidebar-title {
+  font-size: 14px;
+  color: #e0e0e0;
+  font-weight: 500;
+}
+
+.document-outline {
+  padding: 8px 0;
+  overflow-y: auto;
+}
+
+.document-sidebar-section {
+  margin-bottom: 16px;
+}
+
+.document-sidebar-section-title {
+  padding: 4px 16px;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #a0a0a0;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.outline-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #bbb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.outline-item:hover {
+  background-color: #2c2c2c;
+  color: #e0e0e0;
+}
+
+.outline-item.active {
+  background-color: #333;
+  color: #5c5cff;
+}
+
+.outline-item i {
+  width: 16px;
+  text-align: center;
+  opacity: 0.7;
+}
+
+/* Stile per ruler */
+.document-ruler {
+  position: sticky;
+  top: 0;
+  background-color: #1e1e1e;
+  border-bottom: 1px solid #333;
+  padding: 0 96px;
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+}
+
+.ruler-marker {
+  position: absolute;
+  width: 1px;
+  height: 4px;
+  background-color: #555;
+  bottom: 2px;
+}
+
+.ruler-marker.major {
+  height: 10px;
+}
+
+.ruler-number {
+  position: absolute;
+  color: #777;
+  font-size: 8px;
+  bottom: 12px;
+  transform: translateX(-50%);
+}
+
+/* Pulsante per aprire/chiudere la sidebar */
+.sidebar-toggle-btn {
+  position: absolute;
+  left: 10px;
+  top: 90px;
+  width: 32px;
+  height: 32px;
+  background-color: #252525;
+  border: 1px solid #333;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #bbb;
+  cursor: pointer;
+  z-index: 85;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.sidebar-toggle-btn:hover {
+  background-color: #333;
+  transform: scale(1.05);
+}
+
+/* Pulsante fluttuante per l'inserimento rapido */
+.document-floating-button {
+  position: fixed;
+  right: 280px;
+  bottom: 40px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: #2e6fff;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.document-floating-button:hover {
+  background-color: #3d7aff;
+  transform: scale(1.05);
+}
+
+/* Status bar in fondo al documento */
+.document-status-bar {
+  position: relative;
+  margin-top: 20px;
+  margin-bottom: -50px;
+  border-top: 1px solid #dadce0;
+  padding: 8px 0;
+  display: flex;
+  justify-content: space-between;
+  color: #5f6368;
+  font-size: 12px;
+}
+
+.document-status-info {
+  display: flex;
+  gap: 16px;
+}
+
+/* Dark Mode Document Overlay */
+.document-mode-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin-left: 0; /* Rimosso lo spazio per coprire l'intera UI */
+    z-index: 1000;
+    background-color: #191919;
+    color: #e6e6e6;
+    display: flex;
+    flex-direction: column;
+    animation: fadeIn 0.2s ease-out;
+    border-left: 1px solid #333;
+}
+
+/* Toolbar superiore del documento */
+.document-top-toolbar {
+    background-color: #1a1a1a; /* Leggermente più scuro della sidebar */
+    border-bottom: 1px solid #333;
+    padding: 8px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 48px;
+    color: #e6e6e6;
+}
+
+/* Campo titolo documento */
+.document-title-input {
+    background-color: transparent;
+    border: none;
+    color: #e6e6e6;
+    font-size: 18px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 4px;
+    margin: 0;
+    width: 100%;
+    transition: background-color 0.2s;
+}
+
+.document-title-input:focus {
+    background-color: #252525;
+    outline: none;
+}
+
+/* Toolbar di formattazione */
+.document-format-toolbar {
+    background-color: #222222;
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #333;
+    gap: 8px;
+    height: 40px;
+}
+
+/* Pulsanti della toolbar */
+.document-toolbar-btn {
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    color: #bbb;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.document-toolbar-btn:hover,
+.document-toolbar-btn.active {
+    background-color: #333;
+    color: #fff;
+}
+
+/* Area principale del documento */
+.document-main-area {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    background-color: #1e1e1e;
+}
+
+/* Contenuto del documento */
+.document-content {
+    flex: 1;
+    padding: 40px;
+    overflow-y: auto;
+    background-color: #191919;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Contenitore del documento con area di scrittura visivamente distinta */
+.document-container {
+    background-color: #252525;
+    border-radius: 6px;
+    padding: 40px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    width: 100%;
+    max-width: 750px;
+    margin: 0 auto;
+}
+
+/* Stile blocchi di testo */
+.document-mode-overlay .note-block {
+    margin: 3px 0;
+    position: relative;
+    max-width: 100%;
+    width: 100%;
+    padding: 3px 0;
+    transition: background-color 0.15s;
+    border-radius: 3px;
+}
+
+/* Miglioramenti stile testo per maggiore leggibilità */
+.document-mode-overlay .block-content {
+    outline: none;
+    padding: 4px 16px;
+    color: #f0f0f0; /* Testo più chiaro per migliore contrasto */
+    font-size: 16px;
+    line-height: 1.6;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    letter-spacing: -0.003em;
+    width: 100%;
+}
+
+.document-mode-overlay .block-content:focus {
+    outline: none;
+}
+
+/* Effetti hover e focus sui blocchi */
+.document-mode-overlay .note-block:hover {
+    background-color: #2a2a2a;
+}
+.document-mode-overlay .block-content[data-placeholder]:empty:before {
+    content: attr(data-placeholder);
+    color: #718096;
+    opacity: 0.8;
+    pointer-events: none;
+}
+
+.document-mode-overlay .block-heading .block-content {
+    font-weight: 600;
+    font-size: 1.875em;
+    line-height: 1.3;
+    margin: 16px 0;
+    color: #ffffff; /* Bianco per i titoli con massimo contrasto */
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+.document-mode-overlay .block-subheading .block-content {
+    font-weight: 600;
+    font-size: 1.5em;
+    line-height: 1.3;
+    margin: 12px 0;
+    color: #ffffff; /* Bianco per i sottotitoli */
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+.document-mode-overlay .block-callout {
+    background-color: #2d3748;
+    border-radius: 4px;
+    padding: 16px;
+    margin: 8px 16px;
+    border-left: 4px solid #4299e1;
+}
+
+.document-mode-overlay .block-quote {
+    padding-left: 20px;
+    margin: 8px 16px;
+    border-left: 3px solid #718096;
+    font-style: italic;
+    color: #cbd5e0;
+}
+
+.document-sidebar {
+    width: 240px;
+    background-color: #232323;
+    border-left: 1px solid #333;
+    padding: 16px 0;
+    overflow-y: auto;
+    transition: transform 0.3s;
+}
+
+.document-sidebar.hidden {
+    transform: translateX(100%);
+}
+
+.document-outline {
+    padding: 0 16px;
+}
+
+.outline-item {
+    padding: 6px 8px;
+    border-radius: 4px;
+    margin: 2px 0;
+    cursor: pointer;
+    color: #bbb;
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+}
+
+.outline-item:hover {
+    background-color: #2c2c2c;
+}
+
+.outline-item.active {
+    background-color: #333;
+    color: #fff;
+}
+
+.document-status-bar {
+    height: 28px;
+    background-color: #1a1a1a;
+    border-top: 1px solid #333;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 12px;
+    color: #999;
+}
+
+.document-floating-button {
+    position: fixed;
+    right: 280px;
+    bottom: 40px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: #2e6fff;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    z-index: 10;
+    transition: transform 0.2s, background-color 0.2s;
+}
+
+.document-floating-button:hover {
+    background-color: #3d7aff;
+    transform: scale(1.05);
+}
+
+/* Notion-like code block */
+.document-mode-overlay .block-code {
+    background-color: #2d3748;
+    border-radius: 4px;
+    margin: 8px 16px;
+    overflow: hidden;
+    border: 1px solid #4a5568;
+}
+
+.document-mode-overlay .block-code-header {
+    padding: 8px 12px;
+    background-color: #1a202c;
+    color: #a0aec0;
+    font-size: 12px;
+    border-bottom: 1px solid #4a5568;
+}
+
+.document-mode-overlay .block-code-content {
+    padding: 12px;
+    overflow-x: auto;
+}
+
+.document-mode-overlay .block-code .block-content {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 14px;
+    color: #edf2f7;
+    background-color: #2d3748;
+    padding: 12px;
+}
+
+/* Notion-like checklist */
+.document-mode-overlay .checklist-container {
+    margin: 4px 0;
+}
+
+.document-mode-overlay .checklist-item {
+    display: flex;
+    align-items: center;
+    margin: 2px 0;
+}
+
+.document-mode-overlay .checklist-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border: 1px solid #718096;
+    border-radius: 3px;
+    margin-right: 10px;
+    position: relative;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+.document-mode-overlay .checklist-checkbox:checked {
+    background-color: #4299e1;
+    border-color: #4299e1;
+}
+
+.document-mode-overlay .checklist-checkbox:checked::after {
+    content: "✓";
+    position: absolute;
+    color: white;
+    font-size: 12px;
+    top: -1px;
+    left: 2px;
+}
+
+/* Format select dropdown */
+.format-select {
+    background-color: #252525;
+    color: #e6e6e6;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 14px;
+    outline: none;
+}
+
+.format-select:focus {
+    border-color: #2e6fff;
+}
+
+/* Make the content area more Notion-like */
+.document-content > div {
+    max-width: 750px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 40px 96px;
+    background-color: #252525; /* Area di scrittura con contrasto */
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Ruler with dark mode styling */
+.document-ruler {
+    height: 20px;
+    position: sticky;
+    top: 0;
+    background-color: #1e1e1e;
+    border-bottom: 1px solid #333;
+    padding: 0 96px;
+    z-index: 5;
+    display: flex;
+    align-items: flex-end;
+}
+
+.ruler-marker {
+    position: absolute;
+    width: 1px;
+    height: 4px;
+    background-color: #555;
+    bottom: 2px;
+}
+
+.ruler-marker.major {
+    height: 10px;
+}
+
+.ruler-number {
+    position: absolute;
+    color: #777;
+    font-size: 8px;
+    bottom: 12px;
+    transform: translateX(-50%);
+}
+
+/* Add a subtle focus-within effect for Notion-like feel */
+.document-mode-overlay .note-block:focus-within {
+    background-color: #252525;
+}
+
+/* Improve the add block button style */
+.add-block-menu {
+    background-color: #252525;
+    border: 1px solid #333;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.add-block-item:hover {
+    background-color: #333;
+}
+
+/* Empty paragraph styling - Notion-like */
+.document-mode-overlay .block-content[data-placeholder]:empty:before {
+    content: attr(data-placeholder);
+    color: #555;
+    opacity: 0.7;
+    pointer-events: none;
+}

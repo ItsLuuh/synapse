@@ -1,0 +1,111 @@
+{
+  "name": "synapse",
+  "version": "1.0.0",
+  "description": "The ultimate worktool to improve your work efficiency.",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "pack": "electron-builder --dir",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "test": "echo \"No tests specified yet\"",
+    "postinstall": "electron-builder install-app-deps",
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean",
+    "release": "electron-builder -p always"
+  },
+  "keywords": [
+    "synapse",
+    "workflow",
+    "management",
+    "electron",
+    "desktop"
+  ],
+  "author": "Synapse Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ItsLuuh/synapse.git"
+  },
+  "homepage": "https://github.com/ItsLuuh/synapse",
+  "bugs": {
+    "url": "https://github.com/ItsLuuh/synapse/issues"
+  },
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "eslint": "^8.53.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^6.1.1",
+    "rimraf": "^5.0.5"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^1.20.2",
+    "electron-google-oauth": "^2.0.0",
+    "electron-store": "^8.1.0",
+    "express": "^4.18.3",
+    "google-auth-library": "^9.15.1",
+    "gridstack": "^12.1.1",
+    "highlight.js": "^11.9.0",
+    "lowdb": "^1.0.0",
+    "marked": "^9.1.5",
+    "protobufjs": "^7.5.0",
+    "sortablejs": "^1.15.6",
+    "systeminformation": "^5.25.11"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "build": {
+    "appId": "net.synapse.chat",
+    "productName": "Synapse",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json",
+      "LICENSE",
+      "icons/**/*",
+      "!.git/**/*",
+      "!**/.vscode/**/*",
+      "!**/.github/**/*",
+      "!docs/**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icons/project-logo.ico",
+      "executableName": "Synapse"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "icons/project-logo.png",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": ["AppImage", "snap", "deb"],
+      "icon": "icons/project-logo.png",
+      "category": "Office;Utility"
+    },
+    "publish": {
+      "provider": "github",
+      "repo": "synapse",
+      "owner": "ItsLuuh",
+      "releaseType": "release"
+    }
+  }
+}

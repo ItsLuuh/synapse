@@ -1,0 +1,94 @@
+/* Sidebar specific styles */
+
+/* Logo styles */
+.sidebar-logo {
+  width: 40px;
+  height: 40px;
+  display: none;
+  margin: 0 auto;
+}
+
+.sidebar.collapsed .sidebar-logo {
+  display: block;
+}
+
+.sidebar:not(.collapsed) .sidebar-logo {
+  display: none;
+}
+
+/* Banner styles */
+.sidebar-banner {
+  width: 90%;
+  max-height: 80px;
+  display: none;
+  margin: 10px auto;
+  object-fit: contain;
+  z-index: 2;
+  border-bottom: none; /* Add a fine line below the banner */
+}
+
+.sidebar.collapsed .sidebar-banner {
+  display: none;
+}
+
+.sidebar:not(.collapsed) .sidebar-banner {
+  display: block;
+}
+
+/* Expandable button styles */
+.toggle-sidebar-btn {
+  position: absolute;
+  top: 860px; /* Adjusted to be above the new chat button */
+  right: 10px;
+  z-index: 10;
+  background-color: #141414;
+  border-radius: 4px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  padding: 8px;
+}
+
+/* Icon visibility in different sidebar states */
+.sidebar.collapsed .sidebar-icon span {
+  opacity: 0;
+  visibility: hidden;
+  display: none;
+  margin-right: 10px; /* Add space between icons */
+}
+
+/* Add spacing between icons in collapsed state */
+.sidebar.collapsed .sidebar-icon {
+  margin: 15px 0; /* Increased vertical spacing between icons */
+}
+
+.sidebar:not(.collapsed) .sidebar-icon span {
+  opacity: 1;
+  visibility: visible;
+  display: inline;
+}
+
+/* Ensure icons are always visible */
+.sidebar-icon i {
+  display: inline-block;
+}
+
+/* Title visibility in different sidebar states */
+.sidebar-header h2 {
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.sidebar.collapsed .sidebar-header h2 {
+  opacity: 0;
+  visibility: hidden;
+  display: none;
+}
+
+.sidebar:not(.collapsed) .sidebar-header h2 {
+  opacity: 1;
+  visibility: visible;
+  display: block;
+}

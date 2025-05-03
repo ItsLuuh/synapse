@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Synapse</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="landing-page.css">
+  <link rel="stylesheet" href="sidebar.css">
+  <link rel="stylesheet" href="title-bar.css">
+  <link rel="stylesheet" href="workflow.css">
+  <link rel="stylesheet" href="context-menu.css">
+  <link rel="stylesheet" href="calendar.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="workflow-state.js" defer></script>
+  <script src="calendar-state.js" defer></script>
+  <script src="workflow.js" defer></script>
+  <script src="calendar.js" defer></script>
+  <script src="profile.js" defer></script>
+  <script src="settings.js" defer></script>
+</head>
+<body>
+  <div class="title-bar">
+    <div class="title-bar-left">
+      <img src="../../icons/project-logo.png" alt="Synapse" class="app-icon">
+      <div class="title-bar-menu">
+        <div class="menu-item" id="fileMenu">File</div>
+        <div class="menu-item" id="editMenu">Edit</div>
+        <div class="menu-item" id="selectionMenu">Selection</div>
+        <div class="menu-item" id="viewMenu">View</div>
+        <div class="menu-item" id="goMenu">Go</div>
+        <div class="menu-item" id="terminalMenu">Terminal</div>
+        <div class="menu-item" id="helpMenu">Help</div>
+      </div>
+    </div>
+    <div class="title-bar-right">
+      <div class="window-title">Synapse</div>
+      <!-- User Profile Component -->
+      <div class="user-profile">
+        <div class="user-avatar">
+          <i class="fas fa-user"></i>
+        </div>
+        <div class="user-name" id="userName">Utente</div>
+        <div class="user-menu-toggle">
+          <i class="fas fa-chevron-down"></i>
+        </div>
+        <!-- User Profile Dropdown Menu (initially hidden) -->
+        <div class="user-dropdown-menu" id="userMenu">
+          <div class="user-info">
+            <div class="user-avatar-large">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="user-details">
+              <div class="user-fullname" id="userFullName">Nome Utente</div>
+              <div class="user-email" id="userEmail">email@example.com</div>
+            </div>
+          </div>
+          <div class="menu-divider"></div>
+          <div class="user-role-section" id="userRoleSection">
+            <div class="user-role">
+              <span class="role-label">Ruolo:</span>
+              <span class="role-value" id="userRole">Utente</span>
+            </div>
+            <div class="menu-item admin-panel-item" id="adminPanelButton" style="display: none;">
+              <i class="fas fa-shield-alt"></i>
+              <span>Admin Panel</span>
+            </div>
+          </div>
+          <div class="menu-divider"></div>
+          <div class="menu-item profile-item">
+            <i class="fas fa-user"></i>
+            <span>Profilo</span>
+          </div>
+          <div class="menu-item settings-item">
+            <i class="fas fa-cog"></i>
+            <span>Impostazioni</span>
+          </div>
+          <div class="menu-divider"></div>
+          <div class="menu-item" id="logoutButton">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Logout</span>
+          </div>
+        </div>
+      </div>
+      <div class="window-controls">
+        <button class="window-control-button" id="minimizeBtn" data-tooltip="Minimize">
+          <i class="fas fa-minus"></i>
+        </button>
+        <button class="window-control-button" id="maximizeBtn" data-tooltip="Maximize">
+          <i class="fas fa-square"></i>
+        </button>
+        <button class="window-control-button close" id="closeBtn" data-tooltip="Close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="app-container">
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <img src="../../icons/project-logo.png" alt="Synapse Logo" class="sidebar-logo">
+        <img src="../../icons/project-banner.png" alt="Synapse Banner" class="sidebar-banner">
+        <button id="toggleSidebarBtn" class="toggle-sidebar-btn">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+      </div>
+      <div class="sidebar-content" id="chatHistorySidebar">
+        <!-- Navigation icons similar to Perplexity sidebar -->
+        <!-- Removed Home, Explore, Workflow, Library icons -->
+        <!-- Chat history items will be displayed here -->
+      </div>
+      <div class="sidebar-footer">
+        <button id="newChatBtn" class="new-chat-btn">
+          <i class="fas fa-plus"></i>
+          <span>Nuova Chat</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="chat-container">
+      <div class="chat-header">
+        <div class="tab-buttons-container" id="tabButtonsContainer">
+          <div class="tab-button home-tab" id="homeTab">
+            <i class="fas fa-home"></i>
+          </div>
+          <div class="dynamic-tabs-wrapper" id="dynamicTabsWrapper">
+            <!-- Le tab dinamiche verranno inserite qui -->
+            <div class="add-tab-btn" id="addTabBtn">
+              <i class="fas fa-plus"></i>
+            </div>
+          </div>
+          <!-- Add Tab Context Menu (initially hidden) -->
+          <div class="add-tab-context-menu" id="addTabContextMenu">
+            <div class="context-menu-item" data-tab-type="workflow"><i class="fas fa-project-diagram"></i> Nuovo Workflow</div>
+            <div class="context-menu-item" data-tab-type="chat"><i class="fas fa-comment-dots"></i> Nuova Chat</div>
+            <div class="context-menu-item" data-tab-type="community"><i class="fas fa-users"></i> Community</div>
+          </div>
+          <!-- End Add Tab Context Menu -->
+        </div>
+      </div>
+      
+      <div class="chat-messages" id="chatMessages">
+        <!-- Chat messages will be displayed here -->
+      </div>
+      
+      <div class="input-container">
+        <div class="input-wrapper">
+          <button id="settingsBtn" class="settings-btn">
+            <i class="fas fa-cog"></i>
+          </button>
+          <textarea id="userInput" placeholder="Come posso aiutarti oggi?" rows="1"></textarea>
+          
+          <div class="action-buttons">
+            <button class="action-btn" id="addBtn">
+              <i class="fas fa-plus"></i>
+            </button>
+            <button class="action-btn" id="thoughtBtn">
+              <i class="fas fa-brain"></i>
+              <span>Pensiero</span>
+            </button>
+            <button class="action-btn" id="searchBtn">
+              <i class="fas fa-search"></i>
+              <span>Cerca</span>
+            </button>
+            <button class="action-btn" id="mcpBtn">
+              <span>MCP</span>
+            </button>
+            <button class="action-btn" id="codeBtn">
+              <i class="fas fa-code"></i>
+            </button>
+            <button class="action-btn" id="imageBtn">
+              <i class="fas fa-image"></i>
+            </button>
+            <button class="action-btn" id="videoBtn">
+              <i class="fas fa-video"></i>
+            </button>
+            <div class="send-button-container">
+              <button class="action-btn" id="sendBtn">
+                <i class="fas fa-microphone"></i>
+              </button>
+              <div class="send-options">
+                <button class="send-option" id="voiceBtn">
+                  <i class="fas fa-microphone"></i>
+                </button>
+                <button class="send-option" id="textSendBtn">
+                  <i class="fas fa-paper-plane"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="shortcut-buttons">
+          <button class="shortcut-btn">
+            <i class="fas fa-image"></i>
+            <span>Crea immagine</span>
+          </button>
+          <button class="shortcut-btn">
+            <i class="fas fa-code"></i>
+            <span>Codice</span>
+          </button>
+          <button class="shortcut-btn">
+            <i class="fas fa-tasks"></i>
+            <span>Fai un piano</span>
+          </button>
+          <button class="shortcut-btn">
+            <i class="fas fa-newspaper"></i>
+            <span>Notizie</span>
+          </button>
+          <button class="shortcut-btn">
+            <span>Altro</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal">
+    <div class="modal-content">
+      <div class="settings-sidebar">
+        <div class="settings-sidebar-header">
+          <h2>Impostazioni</h2>
+        </div>
+        <div class="settings-categories">
+          <div class="settings-category active" data-category="general">
+            <i class="fas fa-cog"></i>
+            <span>Generale</span>
+          </div>
+          <div class="settings-category" data-category="appearance">
+            <i class="fas fa-palette"></i>
+            <span>Aspetto</span>
+          </div>
+          <div class="settings-category" data-category="editor">
+            <i class="fas fa-edit"></i>
+            <span>Editor</span>
+          </div>
+          <div class="settings-category" data-category="llm-api">
+            <i class="fas fa-robot"></i>
+            <span>API LLM</span>
+          </div>
+          <div class="settings-category" data-category="notifications">
+            <i class="fas fa-bell"></i>
+            <span>Notifiche</span>
+          </div>
+          <div class="settings-category" data-category="privacy">
+            <i class="fas fa-shield-alt"></i>
+            <span>Privacy</span>
+          </div>
+          <div class="settings-category" data-category="shortcuts">
+            <i class="fas fa-keyboard"></i>
+            <span>Scorciatoie</span>
+          </div>
+          <div class="settings-category" data-category="sync">
+            <i class="fas fa-sync"></i>
+            <span>Sincronizzazione</span>
+          </div>
+          <div class="settings-category" data-category="nsn">
+            <i class="fas fa-brain"></i>
+            <span>NSN</span>
+          </div>
+          <div class="settings-category" data-category="about">
+            <i class="fas fa-info-circle"></i>
+            <span>Informazioni</span>
+          </div>
+        </div>
+      </div>
+      <div class="settings-content">
+        <div class="modal-header">
+          <h2 id="settingsCategoryTitle">Generale</h2>
+          <div class="header-actions">
+            <button id="saveSettingsBtn" class="save-btn">
+              <i class="fas fa-save"></i>
+              <span>Salva</span>
+            </button>
+            <button id="closeSettingsBtn" class="close-btn">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+        <div class="modal-body">
+          <!-- General Settings Section -->
+          <div class="settings-section" id="general-settings">
+            <h3>Preferenze</h3>
+            <div class="setting-item">
+              <label for="languageSelect">Lingua:</label>
+              <select id="languageSelect">
+                <option value="it">Italiano</option>
+                <option value="en">English</option>
+                <option value="es">Español</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+              </select>
+            </div>
+            <div class="setting-item">
+              <label for="themeSelect">Tema:</label>
+              <select id="themeSelect">
+                <option value="dark">Scuro</option>
+                <option value="light">Chiaro</option>
+                <option value="system">Automatico (sistema)</option>
+              </select>
+            </div>
+            <div class="setting-item">
+              <label for="fontSizeSelect">Dimensione testo:</label>
+              <select id="fontSizeSelect">
+                <option value="small">Piccolo</option>
+                <option value="medium">Medio</option>
+                <option value="large">Grande</option>
+                <option value="extra-large">Molto grande</option>
+              </select>
+            </div>
+            <div class="setting-item">
+              <label for="startPageSelect">Pagina iniziale:</label>
+              <select id="startPageSelect">
+                <option value="dashboard">Dashboard</option>
+                <option value="chat">Chat</option>
+                <option value="workflow">Workflow</option>
+              </select>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="animationsToggle">Animazioni:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="animationsToggle" checked />
+                <label for="animationsToggle"></label>
+              </div>
+              <div class="setting-description">Attiva o disattiva le animazioni dell'interfaccia</div>
+            </div>
+          </div>
+
+          <!-- Appearance Settings Section -->
+          <div class="settings-section" id="appearance-settings" style="display: none;">
+            <h3>Personalizzazione</h3>
+            <div class="setting-item">
+              <label for="accentColorPicker">Colore principale:</label>
+              <input type="color" id="accentColorPicker" value="#4370cc">
+              <div class="setting-description">Colore utilizzato per evidenziare elementi dell'interfaccia</div>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="darkModeToggle">Modalità scura:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="darkModeToggle" checked />
+                <label for="darkModeToggle"></label>
+              </div>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="contrastModeToggle">Modalità ad alto contrasto:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="contrastModeToggle" />
+                <label for="contrastModeToggle"></label>
+              </div>
+              <div class="setting-description">Migliora la leggibilità con contrasto più elevato</div>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="transparencyToggle">Effetti di trasparenza:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="transparencyToggle" checked />
+                <label for="transparencyToggle"></label>
+              </div>
+              <div class="setting-description">Abilita o disabilita gli effetti di trasparenza nell'interfaccia</div>
+            </div>
+            
+            <h3>Font</h3>
+            <div class="setting-item toggle-container">
+              <label for="customFontsToggle">Utilizza font personalizzati:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="customFontsToggle" />
+                <label for="customFontsToggle"></label>
+              </div>
+            </div>
+            <div class="setting-item" id="fontFamilyContainer" style="display: none;">
+              <label for="fontFamilySelect">Famiglia di font:</label>
+              <select id="fontFamilySelect">
+                <option value="system-ui">Sistema (default)</option>
+                <option value="Arial, sans-serif">Arial</option>
+                <option value="Helvetica, sans-serif">Helvetica</option>
+                <option value="'Segoe UI', sans-serif">Segoe UI</option>
+                <option value="'Roboto', sans-serif">Roboto</option>
+                <option value="'Open Sans', sans-serif">Open Sans</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Editor Settings Section -->
+          <div class="settings-section" id="editor-settings" style="display: none;">
+            <h3>Preferenze Editor</h3>
+            <div class="setting-item">
+              <label for="editorFontSelect">Font editor:</label>
+              <select id="editorFontSelect">
+                <option value="Consolas, monospace">Consolas</option>
+                <option value="'Source Code Pro', monospace">Source Code Pro</option>
+                <option value="'Fira Code', monospace">Fira Code</option>
+                <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
+                <option value="monospace">Monospace predefinito</option>
+              </select>
+            </div>
+            <div class="setting-item">
+              <label for="editorFontSizeInput">Dimensione font editor:</label>
+              <input type="number" id="editorFontSizeInput" min="8" max="32" value="14">
+              <div class="setting-description">Dimensione del font nell'editor di codice</div>
+            </div>
+            <div class="setting-item">
+              <label for="tabSizeInput">Dimensione tabulazione:</label>
+              <input type="number" id="tabSizeInput" min="1" max="8" value="2">
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="wordWrapToggle">A capo automatico:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="wordWrapToggle" checked />
+                <label for="wordWrapToggle"></label>
+              </div>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="lineNumbersToggle">Numeri di riga:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="lineNumbersToggle" checked />
+                <label for="lineNumbersToggle"></label>
+              </div>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="minimapToggle">Minimap:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="minimapToggle" checked />
+                <label for="minimapToggle"></label>
+              </div>
+              <div class="setting-description">Mostra una mappa in miniatura del codice</div>
+            </div>
+            
+            <h3>Salvataggio</h3>
+            <div class="setting-item toggle-container">
+              <label for="autoSaveToggle">Salvataggio automatico:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="autoSaveToggle" checked />
+                <label for="autoSaveToggle"></label>
+              </div>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="formatOnSaveToggle">Formatta al salvataggio:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="formatOnSaveToggle" checked />
+                <label for="formatOnSaveToggle"></label>
+              </div>
+              <div class="setting-description">Formatta automaticamente il codice al salvataggio</div>
+            </div>
+          </div>
+
+          <!-- LLM API Settings Section -->
+          <div class="settings-section" id="llm-api-settings" style="display: none;">
+            <h3>Gestione API</h3>
+            <div class="setting-item">
+              <label for="defaultProviderSelect">Provider predefinito:</label>
+              <select id="defaultProviderSelect">
+                <option value="">Seleziona un provider</option>
+                <!-- Provider options will be populated dynamically -->
+              </select>
+            </div>
+            
+            <h3>Provider API</h3>
+            <div id="apiProvidersList" class="providers-list">
+              <!-- API providers will be listed here -->
+              <div class="no-providers">Nessun provider configurato</div>
+            </div>
+            
+            <div class="setting-item">
+              <button id="addProviderBtn" class="primary-btn">
+                <i class="fas fa-plus"></i> Aggiungi nuovo provider
+              </button>
+            </div>
+            
+            <!-- Add Provider Form (initially hidden) -->
+            <div id="addProviderForm" style="display: none;">
+              <h3>Aggiungi Provider</h3>
+              <div class="setting-item">
+                <label for="providerNameInput">Nome Provider:</label>
+                <input type="text" id="providerNameInput" placeholder="es. OpenAI, Anthropic, ecc.">
+              </div>
+              <div class="setting-item">
+                <label for="apiKeyInput">API Key:</label>
+                <div class="api-key-input">
+                  <input type="password" id="apiKeyInput" placeholder="Inserisci la tua API key">
+                  <button class="toggle-visibility" id="toggleApiKeyVisibility">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                </div>
+                <div class="setting-description">La tua API key è criptata e salvata localmente</div>
+              </div>
+              <div class="setting-item">
+                <label for="apiEndpointInput">Endpoint API (opzionale):</label>
+                <input type="text" id="apiEndpointInput" placeholder="https://api.example.com/v1">
+                <div class="setting-description">Lascia vuoto per utilizzare l'endpoint predefinito</div>
+              </div>
+              <div class="setting-item">
+                <label for="modelNameInput">Nome Modello:</label>
+                <input type="text" id="modelNameInput" placeholder="es. gpt-4, claude-3, ecc.">
+              </div>
+              <div class="setting-item">
+                <label for="temperatureInput">Temperatura:</label>
+                <div class="range-with-value">
+                  <input type="range" id="temperatureInput" min="0" max="2" step="0.1" value="0.7">
+                  <span id="temperatureValue">0.7</span>
+                </div>
+                <div class="setting-description">Valori più bassi = risposte più deterministiche, valori più alti = risposte più creative</div>
+              </div>
+              <div class="setting-item">
+                <button id="saveProviderBtn" class="primary-btn">Salva Provider</button>
+                <button id="cancelAddProviderBtn" class="secondary-btn">Annulla</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notifications Settings Section -->
+          <div class="settings-section" id="notifications-settings" style="display: none;">
+            <h3>Preferenze Notifiche</h3>
+            <div class="setting-item toggle-container">
+              <label for="notificationToggle">Abilita notifiche:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="notificationToggle" checked />
+                <label for="notificationToggle"></label>
+              </div>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="soundToggle">Suoni di notifica:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="soundToggle" checked />
+                <label for="soundToggle"></label>
+              </div>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="desktopNotificationsToggle">Notifiche desktop:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="desktopNotificationsToggle" checked />
+                <label for="desktopNotificationsToggle"></label>
+              </div>
+              <div class="setting-description">Mostra notifiche anche quando l'app è in background</div>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="updateNotificationsToggle">Notifiche aggiornamenti:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="updateNotificationsToggle" checked />
+                <label for="updateNotificationsToggle"></label>
+              </div>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="taskNotificationsToggle">Promemoria attività:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="taskNotificationsToggle" checked />
+                <label for="taskNotificationsToggle"></label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Privacy Settings Section -->
+          <div class="settings-section" id="privacy-settings" style="display: none;">
+            <h3>Gestione Dati</h3>
+            <div class="setting-item toggle-container">
+              <label for="historyToggle">Salva cronologia chat:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="historyToggle" checked />
+                <label for="historyToggle"></label>
+              </div>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="analyticsToggle">Statistiche di utilizzo anonime:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="analyticsToggle" checked />
+                <label for="analyticsToggle"></label>
+              </div>
+              <div class="setting-description">Condividi dati anonimi per migliorare l'app</div>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="crashReportsToggle">Segnalazioni errori:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="crashReportsToggle" checked />
+                <label for="crashReportsToggle"></label>
+              </div>
+              <div class="setting-description">Invia segnalazioni automatiche in caso di errori</div>
+            </div>
+            <div class="setting-item toggle-container">
+              <label for="autoUpdateToggle">Aggiornamenti automatici:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="autoUpdateToggle" checked />
+                <label for="autoUpdateToggle"></label>
+              </div>
+            </div>
+            <div class="settings-actions">
+              <button id="clearHistoryBtn" class="danger-btn">Cancella cronologia</button>
+              <button id="exportDataBtn" class="secondary-btn">Esporta i tuoi dati</button>
+            </div>
+          </div>
+          
+          <!-- Shortcuts Settings Section -->
+          <div class="settings-section" id="shortcuts-settings" style="display: none;">
+            <h3>Scorciatoie da tastiera</h3>
+            <div class="shortcuts-list">
+              <div class="shortcut-item">
+                <div class="shortcut-name">Nuova chat</div>
+                <div class="shortcut-key">Ctrl+N</div>
+              </div>
+              <div class="shortcut-item">
+                <div class="shortcut-name">Impostazioni</div>
+                <div class="shortcut-key">Ctrl+,</div>
+              </div>
+              <div class="shortcut-item">
+                <div class="shortcut-name">Cerca</div>
+                <div class="shortcut-key">Ctrl+F</div>
+              </div>
+              <div class="shortcut-item">
+                <div class="shortcut-name">Salva</div>
+                <div class="shortcut-key">Ctrl+S</div>
+              </div>
+              <div class="shortcut-item">
+                <div class="shortcut-name">Annulla</div>
+                <div class="shortcut-key">Ctrl+Z</div>
+              </div>
+              <div class="shortcut-item">
+                <div class="shortcut-name">Ripeti</div>
+                <div class="shortcut-key">Ctrl+Y</div>
+              </div>
+              <div class="shortcut-item">
+                <div class="shortcut-name">Taglia</div>
+                <div class="shortcut-key">Ctrl+X</div>
+              </div>
+              <div class="shortcut-item">
+                <div class="shortcut-name">Copia</div>
+                <div class="shortcut-key">Ctrl+C</div>
+              </div>
+              <div class="shortcut-item">
+                <div class="shortcut-name">Incolla</div>
+                <div class="shortcut-key">Ctrl+V</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Sync Settings Section -->
+          <div class="settings-section" id="sync-settings" style="display: none;">
+            <h3>Sincronizzazione Cloud</h3>
+            <div class="setting-item toggle-container">
+              <label for="syncToggle">Abilita sincronizzazione:</label>
+              <div class="toggle-switch">
+                <input type="checkbox" id="syncToggle" />
+                <label for="syncToggle"></label>
+              </div>
+            </div>
+            
+            <div id="syncSettingsContainer" style="display: none;">
+              <div class="setting-item">
+                <label for="syncProviderSelect">Provider Cloud:</label>
+                <select id="syncProviderSelect">
+                  <option value="">Seleziona provider</option>
+                  <option value="google">Google Drive</option>
+                  <option value="dropbox">Dropbox</option>
+                  <option value="onedrive">OneDrive</option>
+                </select>
+              </div>
+              <div class="setting-item toggle-container">
+                <label for="autoSyncToggle">Sincronizzazione automatica:</label>
+                <div class="toggle-switch">
+                  <input type="checkbox" id="autoSyncToggle" checked />
+                  <label for="autoSyncToggle"></label>
+                </div>
+              </div>
+              <div class="setting-item">
+                <label for="syncFrequencySelect">Frequenza sincronizzazione:</label>
+                <select id="syncFrequencySelect">
+                  <option value="realtime">Tempo reale</option>
+                  <option value="hourly">Ogni ora</option>
+                  <option value="daily">Giornaliera</option>
+                </select>
+              </div>
+              
+              <div class="sync-status">
+                <div class="sync-info">
+                  <span>Ultimo aggiornamento:</span>
+                  <span id="lastSyncTime">Mai</span>
+                </div>
+                <button id="syncNowBtn" class="secondary-btn">Sincronizza ora</button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- NSN Settings Section -->
+          <div class="settings-section" id="nsn-settings" style="display: none;">
+            <h3>Neuromorphic Semantic Network</h3>
+            <div class="setting-item">
+              <div class="nsn-status-indicator">
+                <span id="nsnStatusIcon" class="status-icon"></span>
+                <span id="nsnStatusText">Checking NSN status...</span>
+              </div>
+            </div>
+            
+            <div class="nsn-tabs">
+              <button class="nsn-tab active" data-tab="neurons">Neurons</button>
+              <button class="nsn-tab" data-tab="visualization">Visualization</button>
+            </div>
+            
+            <div class="nsn-tab-content" id="neurons-tab-content">
+              <div class="nsn-sections">
+                <div class="nsn-section-selector">
+                  <label for="nsnSectionSelect">Brain Section:</label>
+                  <select id="nsnSectionSelect">
+                    <option value="all">All Sections</option>
+                    <option value="Physics">Physics</option>
+                    <option value="Biology">Biology</option>
+                    <option value="Chemistry">Chemistry</option>
+                    <option value="Mathematics">Mathematics</option>
+                    <option value="Computer Science">Computer Science</option>
+                  </select>
+                </div>
+                
+                <div id="nsnNeuronsList" class="nsn-neurons-list">
+                  <!-- Neurons will be listed here -->
+                  <div class="nsn-loading">Loading neurons...</div>
+                </div>
+              </div>
+              
+              <div class="setting-item">
+                <button id="addNeuronBtn" class="primary-btn">
+                  <i class="fas fa-plus"></i> Add New Neuron
+                </button>
+                <button id="addWebUrlBtn" class="primary-btn">
+                  <i class="fas fa-globe"></i> Add From Web URL
+                </button>
+              </div>
+            </div>
+            
+            <div class="nsn-tab-content" id="visualization-tab-content" style="display: none;">
+              <div class="nsn-visualization-container">
+                <div id="nsnVisualization" class="nsn-visualization">
+                  <!-- Visualization will be rendered here -->
+                  <div class="nsn-loading">Loading visualization...</div>
+                </div>
+              </div>
+              
+              <div class="setting-item">
+                <label for="nsnActivationInput">Test Neuron Activation:</label>
+                <div class="nsn-activation-input">
+                  <input type="text" id="nsnActivationInput" placeholder="Enter neuron concept">
+                  <input type="number" id="nsnCurrentInput" min="0.1" max="2" step="0.1" value="1.0">
+                  <button id="activateNeuronBtn" class="primary-btn">Activate</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- About Section -->
+          <div class="settings-section" id="about-settings" style="display: none;">
+            <div class="about-header">
+              <img src="../../icons/project-logo.png" alt="Synapse Logo" class="about-logo">
+              <div class="about-title">
+                <h3>Synapse</h3>
+                <div class="version">Versione 1.0.0</div>
+              </div>
+            </div>
+            
+            <div class="about-description">
+              <p>Synapse è un'applicazione desktop per l'integrazione con modelli AI e la gestione avanzata dei workflow.</p>
+            </div>
+            
+            <div class="about-section">
+              <h4>Sviluppato da</h4>
+              <p>Synapse Team</p>
+            </div>
+            
+            <div class="about-section">
+              <h4>Tecnologie utilizzate</h4>
+              <div class="tech-stack">
+                <div class="tech-item">Electron</div>
+                <div class="tech-item">JavaScript</div>
+                <div class="tech-item">Node.js</div>
+                <div class="tech-item">HTML/CSS</div>
+              </div>
+            </div>
+            
+            <div class="about-actions">
+              <button id="checkUpdatesBtn" class="secondary-btn">
+                <i class="fas fa-sync"></i> Controlla aggiornamenti
+              </button>
+              <button id="showLicensesBtn" class="secondary-btn">
+                <i class="fas fa-file-contract"></i> Licenze
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Toast container for notifications -->
+  <div id="toastContainer"></div>
+  
+  <!-- Modal per l'aggiunta di widget -->
+  <div class="widget-preview-overlay" id="addWidgetModal">
+    <div class="widget-preview-header-container">
+      <h2>Aggiungi Widget</h2>
+      <button class="widget-preview-close"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="widget-category-tabs">
+      <button class="widget-category-tab active" data-category="all">Tutto</button>
+      <button class="widget-category-tab" data-category="productivity">Produttività</button>
+      <button class="widget-category-tab" data-category="dashboard">Dashboard</button>
+      <button class="widget-category-tab" data-category="media">Media</button>
+      <button class="widget-category-tab" data-category="tools">Strumenti</button>
+    </div>
+    <div class="widget-preview-container" id="widgetPreviewContainer">
+      <!-- Qui verranno inseriti dinamicamente i widget disponibili -->
+    </div>
+  </div>
+  
+  <!-- Scripts esterni che potrebbero essere necessari -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

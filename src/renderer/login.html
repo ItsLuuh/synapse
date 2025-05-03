@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" 
+        content="default-src 'self'; 
+                 script-src 'self' 'unsafe-inline'; 
+                 style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; 
+                 font-src 'self' https://cdnjs.cloudflare.com; 
+                 img-src 'self' data:;">
+  <title>Synapse - Accedi</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="login.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="login-body">
+  <div class="login-container">
+    <div class="login-sidebar">
+      <div class="login-logo">
+        <img src="../../icons/project-logo.png" alt="Synapse Logo">
+        <h1>Synapse</h1>
+      </div>
+      <div class="login-features">
+        <div class="feature-item">
+          <i class="fas fa-brain"></i>
+          <div class="feature-text">
+            <h3>Intelligenza Artificiale Avanzata</h3>
+            <p>Potenzia il tuo workflow con strumenti AI all'avanguardia</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <i class="fas fa-project-diagram"></i>
+          <div class="feature-text">
+            <h3>Canvas Collaborativi</h3>
+            <p>Crea e condividi idee in un'interfaccia visuale intuitiva</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <i class="fas fa-lock"></i>
+          <div class="feature-text">
+            <h3>Dati Locali Sicuri</h3>
+            <p>I tuoi dati restano sul tuo dispositivo, sempre privati</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="login-content">
+      <div class="auth-container">
+        <div class="auth-header">
+          <div class="auth-tabs">
+            <button class="auth-tab active" data-tab="login">Accedi</button>
+            <button class="auth-tab" data-tab="register">Registrati</button>
+          </div>
+        </div>
+        
+        <!-- Form di Login -->
+        <div class="auth-form" id="loginForm">
+          <div class="form-group">
+            <label for="loginEmail">Email</label>
+            <div class="input-with-icon">
+              <i class="fas fa-envelope"></i>
+              <input type="email" id="loginEmail" placeholder="Inserisci la tua email">
+            </div>
+            <div class="form-error" id="loginEmailError"></div>
+          </div>
+          
+          <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <div class="input-with-icon">
+              <i class="fas fa-lock"></i>
+              <input type="password" id="loginPassword" placeholder="Inserisci la tua password">
+              <i class="fas fa-eye toggle-password"></i>
+            </div>
+            <div class="form-error" id="loginPasswordError"></div>
+          </div>
+          
+          <div class="form-options">
+            <div class="remember-me">
+              <input type="checkbox" id="rememberMe">
+              <label for="rememberMe">Ricordami</label>
+            </div>
+            <a href="#" class="forgot-password">Password dimenticata?</a>
+          </div>
+          
+          <button class="auth-button" id="loginButton">Accedi</button>
+          
+          <div class="auth-divider">
+            <span>oppure</span>
+          </div>
+          
+          <button id="googleLoginBtn" class="social-button">
+            <i class="fab fa-google"></i>
+            <span>Accedi con Google</span>
+            <div class="feature-badge">Nuovo</div>
+          </button>
+        </div>
+        
+        <!-- Form di Registrazione -->
+        <div class="auth-form hidden" id="registerForm">
+          <div class="form-group">
+            <label for="registerName">Nome Completo</label>
+            <div class="input-with-icon">
+              <i class="fas fa-user"></i>
+              <input type="text" id="registerName" placeholder="Inserisci il tuo nome">
+            </div>
+            <div class="form-error" id="registerNameError"></div>
+          </div>
+          
+          <div class="form-group">
+            <label for="registerEmail">Email</label>
+            <div class="input-with-icon">
+              <i class="fas fa-envelope"></i>
+              <input type="email" id="registerEmail" placeholder="Inserisci la tua email">
+            </div>
+            <div class="form-error" id="registerEmailError"></div>
+          </div>
+          
+          <div class="form-group">
+            <label for="registerPassword">Password</label>
+            <div class="input-with-icon">
+              <i class="fas fa-lock"></i>
+              <input type="password" id="registerPassword" placeholder="Crea una password sicura">
+              <i class="fas fa-eye toggle-password"></i>
+            </div>
+            <div class="password-strength">
+              <div class="strength-bar">
+                <div class="strength-fill" id="passwordStrength"></div>
+              </div>
+              <div class="strength-text" id="strengthText">Sicurezza password: Debole</div>
+            </div>
+            <div class="form-error" id="registerPasswordError"></div>
+          </div>
+          
+          <div class="form-group">
+            <div class="terms-check">
+              <input type="checkbox" id="acceptTerms">
+              <label for="acceptTerms">Accetto i <a href="#">Termini di Servizio</a> e la <a href="#">Privacy Policy</a></label>
+            </div>
+            <div class="form-error" id="termsError"></div>
+          </div>
+          
+          <button class="auth-button" id="registerButton">Crea Account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="auth.js"></script>
+</body>
+</html> 

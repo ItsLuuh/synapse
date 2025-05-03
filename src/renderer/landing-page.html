@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Benvenuto in Synapse</title>
+  <link rel="stylesheet" href="landing-page.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="landing-container">
+    <header class="landing-header">
+      <img src="../../icons/project-logo.png" alt="Synapse Logo" class="landing-logo">
+      <h1>Benvenuto in Synapse Canvas</h1>
+      <p>Esplora nuovi modi di collaborare con gli strumenti di intelligenza artificiale</p>
+    </header>
+    
+    <div class="landing-grid">
+      <!-- Widget Introduttivo -->
+      <div class="feature-widget intro-widget">
+        <div class="widget-header">
+          <h2><i class="fas fa-magic"></i> Synapse Canvas</h2>
+        </div>
+        <div class="widget-content">
+          <p>Scopri un'esperienza di lavagna collaborativa potenziata con AI, progettata per dare vita alle tue idee e connettere il tuo team in tempo reale.</p>
+          <div class="canvas-preview">
+            <div class="canvas-preview-note" style="top: 20px; left: 20px;">
+              <div class="preview-note-header">Idee Principali</div>
+            </div>
+            <div class="canvas-preview-note" style="top: 80px; left: 180px;">
+              <div class="preview-note-header">Roadmap Q3</div>
+            </div>
+            <div class="canvas-preview-ai-node" style="top: 150px; left: 50px;">
+              <div class="preview-ai-header">Text Generator</div>
+            </div>
+            <svg class="preview-connector">
+              <path d="M80,170 L180,110" stroke="#5c5cff" stroke-width="2"></path>
+            </svg>
+          </div>
+          <button class="start-button" id="startCanvasBtn">Inizia a Creare</button>
+        </div>
+      </div>
+      
+      <!-- Widget Note e Testo -->
+      <div class="feature-widget">
+        <div class="widget-header">
+          <h2><i class="fas fa-sticky-note"></i> Note e Testo</h2>
+        </div>
+        <div class="widget-content">
+          <div class="interactive-demo note-demo">
+            <div class="demo-note">
+              <div class="demo-note-header">
+                <div class="demo-note-title">Progetto Synapse</div>
+              </div>
+              <div class="demo-note-content">
+                <p class="demo-block">Fare clic su una nota per iniziare a modificarla</p>
+                <p class="demo-block">Doppio clic per entrare in modalità documento</p>
+                <p class="demo-block-add">+ Aggiungi blocco</p>
+              </div>
+            </div>
+            <div class="demo-instruction">
+              <i class="fas fa-arrow-left"></i> Trascina questa nota per spostarla
+            </div>
+          </div>
+          <div class="feature-description">
+            <p>Crea note in stile card con blocchi di testo riordinabili. Passa alla modalità documento per un'esperienza di editing completa.</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Widget Automazioni AI -->
+      <div class="feature-widget">
+        <div class="widget-header">
+          <h2><i class="fas fa-robot"></i> Automazioni AI</h2>
+        </div>
+        <div class="widget-content">
+          <div class="interactive-demo ai-demo">
+            <div class="demo-ai-toolbox">
+              <div class="demo-toolbox-header">AI Automation</div>
+              <div class="demo-ai-tool">
+                <div class="demo-ai-icon"><i class="fas fa-pen"></i></div>
+                <div>Text Generator</div>
+              </div>
+              <div class="demo-ai-tool">
+                <div class="demo-ai-icon"><i class="fas fa-image"></i></div>
+                <div>Image Gen</div>
+              </div>
+              <div class="demo-ai-tool">
+                <div class="demo-ai-icon"><i class="fas fa-search"></i></div>
+                <div>Web Search</div>
+              </div>
+              <div class="demo-instruction">
+                <i class="fas fa-arrow-right"></i> Trascina sul canvas
+              </div>
+            </div>
+            <div class="demo-ai-node">
+              <div class="demo-ai-node-header">Text Generator</div>
+              <div class="demo-ai-node-content">Genera contenuti da prompt</div>
+              <div class="demo-connector-port left"></div>
+              <div class="demo-connector-port right"></div>
+            </div>
+          </div>
+          <div class="feature-description">
+            <p>Aggiungi potenti automazioni AI al tuo workflow e collegale insieme per creare pipeline di elaborazione.</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Widget Navigazione -->
+      <div class="feature-widget">
+        <div class="widget-header">
+          <h2><i class="fas fa-compass"></i> Navigazione Intuitiva</h2>
+        </div>
+        <div class="widget-content">
+          <div class="interactive-demo navigation-demo">
+            <div class="demo-canvas-view">
+              <div class="demo-grid"></div>
+              <div class="demo-minimap">
+                <div class="demo-viewport"></div>
+              </div>
+              <div class="demo-instruction">
+                <i class="fas fa-search-plus"></i> Zoom con la rotella del mouse<br>
+                <i class="fas fa-hand-paper"></i> Sposta il canvas con click e trascina
+              </div>
+            </div>
+          </div>
+          <div class="feature-description">
+            <p>Naviga con facilità grazie alla minimappa e al canvas infinito. Ingrandisci e rimpicciolisci con il mouse, sposta la vista trascinando.</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Widget File Management -->
+      <div class="feature-widget">
+        <div class="widget-header">
+          <h2><i class="fas fa-folder-open"></i> Gestione File</h2>
+        </div>
+        <div class="widget-content">
+          <div class="interactive-demo files-demo">
+            <div class="demo-folder-tree">
+              <div class="demo-tree-header">Workflow Files</div>
+              <div class="demo-tree-item folder">
+                <i class="fas fa-folder-open"></i> I miei workflow
+              </div>
+              <div class="demo-tree-item file indent">
+                <i class="fas fa-file"></i> Brainstorming.syn
+              </div>
+              <div class="demo-tree-item file indent selected">
+                <i class="fas fa-file"></i> Roadmap Q3.syn
+              </div>
+              <div class="demo-tree-item folder">
+                <i class="fas fa-folder"></i> Progetti
+              </div>
+            </div>
+          </div>
+          <div class="feature-description">
+            <p>Salva il tuo lavoro come file .syn, organizzali in cartelle e accedi a loro da qualsiasi dispositivo.</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Widget Chat AI -->
+      <div class="feature-widget">
+        <div class="widget-header">
+          <h2><i class="fas fa-comment-dots"></i> Chat AI</h2>
+        </div>
+        <div class="widget-content">
+          <div class="interactive-demo chat-demo">
+            <div class="demo-chat">
+              <div class="demo-chat-header">Assistente AI</div>
+              <div class="demo-chat-messages">
+                <div class="demo-chat-message assistant">
+                  Come posso aiutarti con il tuo workflow oggi?
+                </div>
+                <div class="demo-chat-message user">
+                  Crea una nota per il brainstorming
+                </div>
+                <div class="demo-chat-message assistant">
+                  <div class="demo-typing"><span>.</span><span>.</span><span>.</span></div>
+                </div>
+              </div>
+              <div class="demo-chat-input">
+                <input type="text" placeholder="Chiedi all'assistente...">
+              </div>
+            </div>
+          </div>
+          <div class="feature-description">
+            <p>Interagisci con il nostro assistente AI direttamente dal canvas per ricevere aiuto e generare contenuti.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="get-started-container">
+      <h2>Pronto a iniziare?</h2>
+      <button class="create-button" id="createNewCanvasBtn">Crea Nuovo Canvas</button>
+      <p class="tip">Suggerimento: Premi <kbd>Ctrl</kbd> + <kbd>N</kbd> in qualsiasi momento per creare un nuovo canvas.</p>
+    </div>
+  </div>
+
+  <script>
+    // Demo interattiva per il trascinamento della nota
+    document.addEventListener('DOMContentLoaded', () => {
+      const demoNote = document.querySelector('.demo-note');
+      let isDragging = false;
+      let startX, startY, initialLeft, initialTop;
+      
+      demoNote.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.demo-note-header')) {
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          const rect = demoNote.getBoundingClientRect();
+          initialLeft = rect.left;
+          initialTop = rect.top;
+          
+          demoNote.style.cursor = 'grabbing';
+          demoNote.style.boxShadow = '0 8px 15px rgba(0, 0, 0, 0.3)';
+        }
+      });
+      
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+        
+        demoNote.style.left = (initialLeft + deltaX) + 'px';
+        demoNote.style.top = (initialTop + deltaY) + 'px';
+        demoNote.style.position = 'absolute';
+      });
+      
+      document.addEventListener('mouseup', () => {
+        if (isDragging) {
+          demoNote.style.cursor = 'grab';
+          demoNote.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.2)';
+          isDragging = false;
+        }
+      });
+      
+      // Effetto di typing per il messaggio dell'assistente
+      const typingAnimation = document.querySelector('.demo-typing');
+      setInterval(() => {
+        typingAnimation.classList.toggle('active');
+      }, 500);
+      
+      // Pulsanti per iniziare
+      const startCanvasBtn = document.getElementById('startCanvasBtn');
+      const createNewCanvasBtn = document.getElementById('createNewCanvasBtn');
+      
+      if (startCanvasBtn) {
+        startCanvasBtn.addEventListener('click', () => {
+          window.location.href = 'index.html?canvas=new';
+        });
+      }
+      
+      if (createNewCanvasBtn) {
+        createNewCanvasBtn.addEventListener('click', () => {
+          window.location.href = 'index.html?canvas=new';
+        });
+      }
+      
+      // Animazione per la minimappa
+      const demoViewport = document.querySelector('.demo-viewport');
+      if (demoViewport) {
+        let position = 0;
+        const moveViewport = () => {
+          position += 0.5;
+          if (position > 100) position = 0;
+          
+          const left = 20 + Math.sin(position / 20) * 15;
+          const top = 20 + Math.cos(position / 15) * 10;
+          
+          demoViewport.style.left = `${left}px`;
+          demoViewport.style.top = `${top}px`;
+          
+          requestAnimationFrame(moveViewport);
+        };
+        
+        moveViewport();
+      }
+    });
+  </script>
+</body>
+</html> 

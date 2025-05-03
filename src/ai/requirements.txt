@@ -1,0 +1,5 @@
+numpy>=1.26.0
+# Using a newer version of numpy that's compatible with Python 3.13
+requests>=2.28.0
+beautifulsoup4>=4.11.0
+# Libraries for web scraping functionality
