@@ -142,6 +142,28 @@ contextBridge.exposeInMainWorld(
     getSettings: (key) => ipcRenderer.sendSync('get-settings', key),
     generateAIResponse: (prompt) => ipcRenderer.invoke('generate-ai-response', { prompt }),
     
+    // API per il microfono e i permessi
+    requestMicrophonePermission: () => {
+      console.log('Preload: Sending request-microphone-permission IPC message');
+      return ipcRenderer.invoke('request-microphone-permission');
+    },
+    
+    checkMicrophonePermission: () => {
+      console.log('Preload: Sending check-microphone-permission IPC message');
+      return ipcRenderer.invoke('check-microphone-permission');
+    },
+    
+    openMicrophoneSettings: () => {
+      console.log('Preload: Sending open-microphone-settings IPC message');
+      return ipcRenderer.invoke('open-microphone-settings');
+    },
+    
+    // API per apertura URL esterni
+    openExternalLink: (url) => {
+      console.log('Preload: Sending open-external-link IPC message');
+      return ipcRenderer.invoke('open-external-link', url);
+    },
+    
     // Add a simple test method to verify the API is working
     testApi: () => {
       console.log('API test method called');
@@ -184,6 +206,26 @@ contextBridge.exposeInMainWorld('synapseStore', {
   remove: (key) => {
     console.log(`SynapseStore.remove: ${key}`);
     return ipcRenderer.send('save-settings', { key, value: null });
+  }
+});
+
+// Esponiamo elettron specificamente per gestire i permessi
+contextBridge.exposeInMainWorld('electron', {
+  openExternalLink: (url) => {
+    console.log('Preload: Sending open-external-link IPC message');
+    return ipcRenderer.invoke('open-external-link', url);
+  },
+  requestMicrophonePermission: () => {
+    console.log('Preload: Sending request-microphone-permission IPC message');
+    return ipcRenderer.invoke('request-microphone-permission');
+  },
+  checkMicrophonePermission: () => {
+    console.log('Preload: Sending check-microphone-permission IPC message from electron object');
+    return ipcRenderer.invoke('check-microphone-permission');
+  },
+  openMicrophoneSettings: () => {
+    console.log('Preload: Sending open-microphone-settings IPC message');
+    return ipcRenderer.invoke('open-microphone-settings');
   }
 });
 

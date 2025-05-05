@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron');
 const path = require('path');
 const Store = require('electron-store');
 const { createApiService } = require('../services/api-services');
@@ -15,13 +15,40 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
-    icon: path.join(__dirname, '../../icons/project-logo.ico'), // Add this line
+    icon: path.join(__dirname, '../../icons/project-logo.ico'),
     frame: false, // Disable the default frame
     webPreferences: {
       preload: path.resolve(__dirname, 'preload.js'),
-      nodeIntegration: false,
+      nodeIntegration: true,
       contextIsolation: true,
-      sandbox: false // Disable sandbox to allow preload script to access Node.js APIs
+      sandbox: false, // Disable sandbox to allow preload script to access Node.js APIs
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      defaultFontFamily: { standard: 'Arial', serif: 'Times New Roman', sansSerif: 'Arial' },
+      // Permessi migliorati per l'accesso al microfono
+      microphone: true,
+      audioCapture: true,
+      mediaPermissions: true,
+      permissions: {
+        media: true,
+        geolocation: false,
+        notifications: true,
+        midi: false,
+        midiSysex: false,
+        pointerLock: false
+      }
+    }
+  });
+
+  // Richiesta esplicita dei permessi per il microfono
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (permission === 'media' || permission === 'microphone') {
+      // Concede sempre i permessi per il microfono
+      console.log('Main.js: Concesso permesso per il microfono');
+      callback(true);
+    } else {
+      // Per altri permessi usa il comportamento predefinito
+      callback(true);
     }
   });
 
@@ -326,6 +353,143 @@ ipcMain.handle('google-auth-verify', async (event, { idToken }) => {
     return { success: true, userData };
   } catch (error) {
     console.error('Google token verification error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Aggiungi questi handler per i permessi del microfono
+ipcMain.handle('request-microphone-permission', async (event) => {
+  try {
+    // In Electron, questo è il modo migliore per richiedere i permessi del microfono:
+    // Tentiamo direttamente di accedere al microfono
+    console.log('Main.js: Requesting microphone permission explicitly');
+    
+    // Notiamo l'utente che stiamo per richiedere l'accesso al microfono
+    if (mainWindow) {
+      mainWindow.webContents.executeJavaScript(`
+        if (window.api && window.api.showNotification) {
+          window.api.showNotification({
+            title: 'Richiesta Permesso',
+            body: 'Synapse sta richiedendo l\'accesso al microfono...'
+          });
+        }
+      `).catch(err => console.error('Error showing notification:', err));
+    }
+    
+    // Memorizziamo il permesso nello storage persistente
+    store.set('settings.microphonePermission', 'requested');
+    
+    // Otteniamo il permesso tramite getUserMedia
+    const stream = await mainWindow.webContents.executeJavaScript(`
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(() => true)
+        .catch(err => {
+          console.error('Media permission error:', err.name, err.message);
+          return false;
+        });
+    `);
+    
+    console.log('Main.js: Microphone permission result:', stream);
+    
+    // Salva lo stato del permesso
+    if (stream) {
+      store.set('settings.microphonePermission', 'granted');
+      return { granted: true, message: 'Permesso al microfono concesso' };
+    } else {
+      store.set('settings.microphonePermission', 'denied');
+      return { granted: false, message: 'Permesso al microfono negato' };
+    }
+  } catch (error) {
+    console.error('Error requesting microphone permission:', error);
+    return { granted: false, error: error.message };
+  }
+});
+
+ipcMain.handle('check-microphone-permission', async (event) => {
+  try {
+    console.log('Main.js: Checking microphone permission');
+    
+    // Prima controlla se abbiamo già salvato lo stato del permesso
+    const savedPermission = store.get('settings.microphonePermission');
+    console.log('Main.js: Saved permission state:', savedPermission);
+    
+    if (savedPermission === 'granted') {
+      // Verifica che il permesso sia ancora valido
+      const isStillGranted = await mainWindow.webContents.executeJavaScript(`
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(() => true)
+          .catch(() => false);
+      `);
+      
+      if (isStillGranted) {
+        return { state: 'granted' };
+      }
+      // Se non è più valido, aggiorniamo lo stato
+      store.set('settings.microphonePermission', 'unknown');
+    }
+    
+    // Se non abbiamo informazioni salvate o il permesso precedente non è più valido,
+    // verifichiamo lo stato attuale
+    const permissionStatus = await mainWindow.webContents.executeJavaScript(`
+      navigator.permissions.query({ name: 'microphone' })
+        .then(status => status.state)
+        .catch(() => 'unknown');
+    `);
+    
+    console.log('Main.js: Current permission state:', permissionStatus);
+    
+    // Aggiorniamo lo stato salvato
+    store.set('settings.microphonePermission', permissionStatus);
+    
+    return { state: permissionStatus };
+  } catch (error) {
+    console.error('Error checking microphone permission:', error);
+    return { state: 'unknown', error: error.message };
+  }
+});
+
+ipcMain.handle('open-microphone-settings', async (event) => {
+  try {
+    // Su Windows, apriamo le impostazioni di privacy del microfono
+    if (process.platform === 'win32') {
+      shell.openExternal('ms-settings:privacy-microphone');
+      return { success: true };
+    } 
+    // Su macOS, apriamo le preferenze di sicurezza
+    else if (process.platform === 'darwin') {
+      shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone');
+      return { success: true };
+    }
+    // Su altre piattaforme, diamo un messaggio generico
+    else {
+      return { 
+        success: false, 
+        message: 'Apertura impostazioni non supportata su questa piattaforma. Controlla le impostazioni del browser.' 
+      };
+    }
+  } catch (error) {
+    console.error('Error opening microphone settings:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler per aprire link esterni in modo sicuro
+ipcMain.handle('open-external-link', async (event, url) => {
+  try {
+    console.log('Main.js: Opening external link:', url);
+    
+    // Verifica che l'URL sia valido e sicuro
+    if (url.startsWith('http://') || url.startsWith('https://') || 
+        url.startsWith('ms-settings:') || url.startsWith('chrome://') || 
+        url.startsWith('x-apple.systempreferences:')) {
+      await shell.openExternal(url);
+      return { success: true };
+    } else {
+      console.warn('Main.js: Blocked opening potentially unsafe URL:', url);
+      return { success: false, error: 'URL non sicuro' };
+    }
+  } catch (error) {
+    console.error('Error opening external link:', error);
     return { success: false, error: error.message };
   }
 });
