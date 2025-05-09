@@ -34,19 +34,43 @@ window.workflowFunctions.saveWorkflowState = function(workflowId, filename = nul
       y = matrix.m42;
     }
     
+    // Controlla se esiste uno stato salvato della nota in localStorage
+    let savedNoteState = null;
+    try {
+      const savedNoteData = localStorage.getItem(`note_${noteId}`);
+      if (savedNoteData) {
+        savedNoteState = JSON.parse(savedNoteData);
+      }
+    } catch (e) {
+      console.error(`Errore nel caricare lo stato della nota ${noteId} da localStorage:`, e);
+    }
+    
     // Raccogli i blocchi della nota
     const blocks = note.querySelectorAll('.note-block');
     const blocksData = [];
     
-    blocks.forEach(block => {
-      const blockType = block.dataset.type || 'paragraph';
-      const blockContent = block.querySelector('.block-content')?.innerHTML || '';
-      
-      blocksData.push({
-        type: blockType,
-        content: blockContent
+    // Se ci sono blocchi nella nota o se c'è uno stato salvato con blocchi
+    if (blocks.length > 0) {
+      blocks.forEach(block => {
+        const blockType = block.dataset.blockType || 'paragraph';
+        const blockContent = block.querySelector('.block-content')?.innerHTML || '';
+        
+        blocksData.push({
+          type: blockType,
+          content: blockContent
+        });
       });
-    });
+    } 
+    // Se non ci sono blocchi ma esiste uno stato salvato, usa quello
+    else if (savedNoteState && savedNoteState.blocks && savedNoteState.blocks.length > 0) {
+      console.log(`Usando blocchi salvati per la nota ${noteId} (${savedNoteState.blocks.length} blocchi)`);
+      savedNoteState.blocks.forEach(block => {
+        blocksData.push({
+          type: block.type || 'paragraph',
+          content: block.content || ''
+        });
+      });
+    }
     
     // Aggiungi i dati della nota all'array
     notesData.push({
@@ -238,7 +262,7 @@ window.workflowFunctions.loadWorkflowState = function(workflowId, fileContent = 
       const noteActions = document.createElement('div');
       noteActions.className = 'note-actions';
       noteActions.innerHTML = `
-        <button class="note-action"><i class="fas fa-ellipsis-h"></i></button>
+        <button class="note-action note-expand-btn"><i class="fas fa-expand-alt"></i></button>
         <button class="note-action note-close-btn"><i class="fas fa-times"></i></button>
       `;
       
@@ -251,54 +275,65 @@ window.workflowFunctions.loadWorkflowState = function(workflowId, fileContent = 
       noteContent.className = 'note-content';
       note.appendChild(noteContent);
       
-      // Aggiungi i blocchi
-      noteData.blocks.forEach(blockData => {
+      // Aggiungi i blocchi dalla nota
+      if (noteData.blocks && noteData.blocks.length > 0) {
+        noteData.blocks.forEach((blockData, index) => {
+          const block = document.createElement('div');
+          block.className = 'note-block';
+          block.dataset.blockType = blockData.type || 'paragraph';
+          block.dataset.blockIndex = index;
+          
+          // Crea il contenuto del blocco
+          const blockContent = document.createElement('div');
+          blockContent.className = 'block-content';
+          blockContent.contentEditable = true;
+          blockContent.innerHTML = blockData.content || '';
+          
+          // Aggiungi gestori di eventi per l'editing
+          blockContent.addEventListener('input', function(e) {
+            const note = e.target.closest('.workspace-note');
+            if (note && window.handleNoteContentEdit) {
+              window.handleNoteContentEdit(e);
+            }
+          });
+          
+          block.appendChild(blockContent);
+          noteContent.appendChild(block);
+        });
+      }
+      // Se non ci sono blocchi, crea un blocco vuoto di default
+      else {
         const block = document.createElement('div');
         block.className = 'note-block';
-        block.dataset.type = blockData.type;
+        block.dataset.blockType = 'paragraph';
+        block.dataset.blockIndex = 0;
         
         const blockContent = document.createElement('div');
         blockContent.className = 'block-content';
-        blockContent.innerHTML = blockData.content;
         blockContent.contentEditable = true;
+        
+        // Aggiungi gestori di eventi per l'editing
+        blockContent.addEventListener('input', function(e) {
+          const note = e.target.closest('.workspace-note');
+          if (note && window.handleNoteContentEdit) {
+            window.handleNoteContentEdit(e);
+          }
+        });
         
         block.appendChild(blockContent);
         noteContent.appendChild(block);
-        
-        // Imposta gli event handler per il blocco
-        if (typeof window.setupBlockEventHandlers === 'function') {
-          window.setupBlockEventHandlers(block);
-        }
-      });
-      
-      // Aggiungi i resize handle
-      const resizeHandle = document.createElement('div');
-      resizeHandle.className = 'note-resize-handle';
-      
-      // Add specific resize handles for each corner and edge
-      const resizePositions = ['top-left', 'top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left'];
-      resizePositions.forEach(position => {
-        const handle = document.createElement('div');
-        handle.className = `resize-handle ${position}`;
-        handle.dataset.position = position;
-        resizeHandle.appendChild(handle);
-      });
-      
-      note.appendChild(resizeHandle);
+      }
       
       // Aggiungi la nota al workspace
       workspaceArea.appendChild(note);
       
-      // Configura gli event listener per la nota
-      setupNoteTitleEditing(noteTitle, noteData.id);
+      // Configura gli eventi della nota
+      setupNoteEventHandlers(note);
       
-      // Setup event handlers for the note
-      if (typeof window.setupNoteEventHandlers === 'function') {
-        window.setupNoteEventHandlers(note);
+      // Configura editor del titolo
+      if (window.setupNoteTitleEditing) {
+        window.setupNoteTitleEditing(noteTitle, noteData.id);
       }
-      
-      // Aggiungi i pulsanti per aggiungere blocchi tra i blocchi esistenti
-      initializeAddBetweenButtons(note);
     });
   }
   

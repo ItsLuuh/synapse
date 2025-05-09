@@ -858,8 +858,20 @@ function createNewTabButton(tabName = 'Nuova Chat', iconClass = 'fa-comment-dots
         // Salva lo stato della tab corrente prima di cambiarla
         const currentActiveTab = document.querySelector('.tab-button.active');
         if (currentActiveTab) {
-            const currentTabId = currentActiveTab.id;
+            const currentTabId = currentActiveTab.id.replace('-tab', '');
+            console.log(`Saving state for tab: ${currentTabId}`);
+            
+            // Se siamo in modalità documento, esci prima di cambiare tab
+            if (document.body.classList.contains('document-mode')) {
+                const overlay = document.getElementById('documentOverlay');
+                if (overlay && typeof window.exitDocumentMode === 'function') {
+                    console.log('Exiting document mode before tab change');
+                    window.exitDocumentMode();
+                }
+            }
+            
             if (currentTabId.startsWith('workflow-') && window.workflowFunctions?.saveWorkflowState) {
+                console.log('Saving workflow state before tab change');
                 window.workflowFunctions.saveWorkflowState(currentTabId);
             } else if (currentTabId.startsWith('calendar-') && window.calendarFunctions?.saveCalendarState) {
                 window.calendarFunctions.saveCalendarState(currentTabId);
@@ -4252,3 +4264,43 @@ function setupQuickActions(landingPage) {
         });
     });
 }
+
+// Aggiungi il gestore dell'evento DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+    initializeUI();
+    loadSavedChats();
+    initializeDemoChatSelectors();
+    
+    // Avvia i timers per il salvataggio automatico
+    setInterval(saveCurrentTabs, 60000); // Salva le tab aperte ogni minuto
+    
+    // Aggiungi il gestore per la chiusura della finestra
+    window.addEventListener('beforeunload', function() {
+        console.log('Saving all tabs before closing');
+        
+        // Se siamo in modalità documento, salva prima di uscire
+        if (document.body.classList.contains('document-mode')) {
+            const overlay = document.getElementById('documentOverlay');
+            if (overlay && typeof window.exitDocumentMode === 'function') {
+                console.log('Exiting document mode before closing');
+                window.exitDocumentMode();
+            }
+        }
+        
+        // Salva lo stato di tutte le tab
+        const tabs = document.querySelectorAll('#dynamicTabsWrapper .tab-button:not(#addTabBtn)');
+        tabs.forEach(tab => {
+            const tabId = tab.id.replace('-tab', '');
+            if (tabId.startsWith('workflow-') && window.workflowFunctions?.saveWorkflowState) {
+                window.workflowFunctions.saveWorkflowState(tabId);
+            } else if (tabId.startsWith('calendar-') && window.calendarFunctions?.saveCalendarState) {
+                window.calendarFunctions.saveCalendarState(tabId);
+            } else if (tabId.startsWith('community-') && window.communityFunctions?.saveCommunityState) {
+                window.communityFunctions.saveCommunityState(tabId);
+            }
+        });
+        
+        // Salva le chat
+        saveChatsToLocalStorage();
+    });
+});

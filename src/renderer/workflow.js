@@ -26,6 +26,8 @@ let canvasOffsetY = 0;
 let isDraggingCanvas = false;
 let canvasDragStartX = 0;
 let canvasDragStartY = 0;
+let initialCanvasOffsetX = 0;
+let initialCanvasOffsetY = 0;
 let isDocumentMode = false;
 
 // Variabili per la minimappa
@@ -72,8 +74,91 @@ window.workflowFunctions = window.workflowFunctions || {};
 
 // Esponi la funzione di inizializzazione
 window.workflowFunctions.initialize = function() {
+  // Rileva il sistema operativo e aggiungi la classe appropriata al body
+  detectOperatingSystem();
   initializeWorkflow();
 };
+
+// Rileva il sistema operativo
+function detectOperatingSystem() {
+  const platform = navigator.platform.toLowerCase();
+  let osClass = '';
+  
+  if (platform.includes('win')) {
+    osClass = 'windows';
+    console.log('Sistema operativo rilevato: Windows');
+  } else if (platform.includes('mac')) {
+    osClass = 'macos';
+    console.log('Sistema operativo rilevato: macOS');
+  } else if (platform.includes('linux')) {
+    osClass = 'linux';
+    console.log('Sistema operativo rilevato: Linux');
+  } else {
+    osClass = 'windows'; // Default a Windows se non rilevato
+    console.log('Sistema operativo non riconosciuto, default a Windows');
+  }
+  
+  document.body.classList.add(osClass);
+}
+
+// Aggiungi stili CSS per migliorare il panning e lo zoom
+const workflowStyles = document.createElement('style');
+workflowStyles.textContent = `
+  .workflow-workspace {
+    overflow: hidden;
+    position: relative;
+    cursor: grab;  /* Modificato: cursore a mano per indicare che il canvas è spostabile */
+    touch-action: none;  /* Disattiva il comportamento touch di default */
+  }
+  
+  .workflow-workspace.panning {
+    cursor: grabbing !important;
+  }
+  
+  .workflow-workspace.panning-ready {
+    cursor: grabbing !important;
+  }
+  
+  .workflow-workspace-content {
+    position: absolute;
+    top: 0;                      /* Ripristino top */
+    left: 0;                     /* Ripristino left */
+    transform-origin: 0 0;
+    width: 10000px;
+    height: 10000px;
+    /* transition: transform 0.05s ease-out; */ /* Rimosso per reattività immediata */
+    will-change: transform;
+  }
+  
+  .workspace-position-indicator {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    padding: 5px 10px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  .workspace-position-indicator.visible {
+    opacity: 1;
+  }
+`;
+document.head.appendChild(workflowStyles);
+
+// Aggiungi il CSS per i blocchi in stile Notion
+function loadNotionBlockStyles() {
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = './notion-block-styles.css';
+  document.head.appendChild(link);
+}
+loadNotionBlockStyles();
 
 // Esponi la funzione setupNoteTitleEditing globalmente
 window.setupNoteTitleEditing = setupNoteTitleEditing;
@@ -83,6 +168,18 @@ window.initializeAddBetweenButtons = initializeAddBetweenButtons;
 
 // Esponi la funzione createNewNote globalmente
 window.createNewNote = createNewNote;
+
+// Esponi la funzione setupNoteEventHandlers globalmente
+window.setupNoteEventHandlers = setupNoteEventHandlers;
+
+// Esponi la funzione handleNoteContentEdit globalmente
+window.handleNoteContentEdit = handleNoteContentEdit;
+
+// Esponi la funzione enterDocumentMode globalmente
+window.enterDocumentMode = enterDocumentMode;
+
+// Esponi la funzione exitDocumentMode globalmente
+window.exitDocumentMode = exitDocumentMode;
 
 // Initialize workflow when the tab is clicked
 function initializeWorkflow() {
@@ -144,7 +241,7 @@ function initializeWorkflow() {
       
       // Pulisci la sidebar e aggiungi l'albero delle cartelle per i file .syn
       appSidebar.innerHTML = '';
-      createFolderTree(appSidebar);
+      //createFolderTree(appSidebar);
       
       // Assicurati che la sidebar sia visibile e aggiungila al container sinistro
       appSidebar.style.display = 'flex';
@@ -184,6 +281,44 @@ function initializeWorkflow() {
     workspaceArea.id = 'workflowWorkspace';
     centerContainer.appendChild(workspaceArea);
     
+    // Creare il contenitore virtuale per il canvas di grandi dimensioni (10k x 10k)
+    const workspaceContent = document.createElement('div');
+    workspaceContent.className = 'workflow-workspace-content';
+    workspaceContent.id = 'workflowContent';
+    workspaceArea.appendChild(workspaceContent);
+    
+    // Aggiungere un indicatore di posizione nel canvas
+    const positionIndicator = document.createElement('div');
+    positionIndicator.className = 'workspace-position-indicator';
+    positionIndicator.id = 'positionIndicator';
+    positionIndicator.textContent = 'Centro: 5000, 5000';
+    workspaceArea.appendChild(positionIndicator);
+    
+    // Aggiungi il container per le connessioni SVG DENTRO il workspace content
+    // in modo che si muova insieme al canvas
+    const connectionsContainer = document.createElement('div');
+    connectionsContainer.className = 'connections-container';
+    connectionsContainer.id = 'connectionsContainer';
+    connectionsContainer.style.position = 'absolute';
+    connectionsContainer.style.top = '0';
+    connectionsContainer.style.left = '0';
+    connectionsContainer.style.width = '100%';
+    connectionsContainer.style.height = '100%';
+    connectionsContainer.style.pointerEvents = 'none';
+    connectionsContainer.style.zIndex = '10';
+    workspaceContent.appendChild(connectionsContainer);
+    
+    // Create SVG element for connections
+    const svgContainer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svgContainer.setAttribute("width", "100%");
+    svgContainer.setAttribute("height", "100%");
+    svgContainer.style.position = "absolute";
+    svgContainer.style.top = "0";
+    svgContainer.style.left = "0";
+    svgContainer.style.pointerEvents = "none";
+    svgContainer.style.zIndex = "5";
+    connectionsContainer.appendChild(svgContainer);
+    
     // Assicurati che il container occupi tutto lo spazio disponibile
     workflowContainer.style.width = '100%';
     workflowContainer.style.height = '100%';
@@ -193,69 +328,114 @@ function initializeWorkflow() {
     if (addNoteBtn) {
     addNoteBtn.addEventListener('click', createNewNote);
     }
-    
-    // Imposta gli event listener per i pulsanti di zoom nella toolbar verticale
+
+    // Imposta gli event listeners per i pulsanti di zoom
     const zoomInBtn = verticalToolbar.querySelector('.zoom-in-btn');
     const zoomOutBtn = verticalToolbar.querySelector('.zoom-out-btn');
     const resetViewBtn = verticalToolbar.querySelector('.reset-view-btn');
-    
+
     if (zoomInBtn) {
       zoomInBtn.addEventListener('click', () => {
-        canvasScale *= 1.2;
+        console.log('Pulsante zoom in cliccato');
+        canvasScale = Math.min(canvasScale * 1.2, 5);
         updateCanvasTransform();
+        // Aggiorna anche le connessioni
+        updateAllConnections();
       });
     }
-    
+
     if (zoomOutBtn) {
       zoomOutBtn.addEventListener('click', () => {
-        canvasScale *= 0.8;
+        console.log('Pulsante zoom out cliccato');
+        canvasScale = Math.max(canvasScale / 1.2, 0.1);
         updateCanvasTransform();
+        // Aggiorna anche le connessioni
+        updateAllConnections();
       });
     }
-    
+
     if (resetViewBtn) {
       resetViewBtn.addEventListener('click', () => {
+        console.log('Pulsante reset view cliccato');
+        // Centro il canvas attorno al punto 5000, 5000 (centro del canvas 10k x 10k)
         canvasScale = 1;
-        canvasOffsetX = 0;
-        canvasOffsetY = 0;
+        canvasOffsetX = -4500; // Posizione per centrare circa il punto 5000 sulla larghezza
+        canvasOffsetY = -4500; // Posizione per centrare circa il punto 5000 sull'altezza
         updateCanvasTransform();
+        // Aggiorna anche le connessioni
+        updateAllConnections();
       });
     }
-    
-    // Crea la minimappa come elemento fisso in basso a destra
-    createMinimap(centerContainer);
-    
-    // Crea la sidebar destra con chat AI
+
+    // Create right sidebar with AI chat
     const rightSidebar = document.createElement('div');
     rightSidebar.className = 'workflow-right-sidebar';
     mainLayout.appendChild(rightSidebar);
-    
-    // Aggiungi il pulsante per mostrare/nascondere la sidebar destra
-    const toggleRightSidebarBtn = document.createElement('button');
-    toggleRightSidebarBtn.className = 'toggle-right-sidebar-btn';
-    toggleRightSidebarBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
-    toggleRightSidebarBtn.addEventListener('click', () => {
-      rightSidebar.classList.toggle('collapsed');
-      if (rightSidebar.classList.contains('collapsed')) {
-        toggleRightSidebarBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
-      } else {
-        toggleRightSidebarBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
-      }
-    });
-    rightSidebar.appendChild(toggleRightSidebarBtn);
-    
-    // Crea la chat AI nella sidebar destra
+
+    // Add toggle button for right sidebar
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'toggle-right-sidebar-btn';
+    toggleBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+    toggleBtn.addEventListener('click', toggleWorkflowSidebar);
+    rightSidebar.appendChild(toggleBtn);
+
+    // Add AI chat component
     createAIChat(rightSidebar);
     
-    // Set up event listeners for dragging and resizing notes/nodes
+    // Create minimap in the bottom right corner
+    createMinimap(centerContainer);
+    
+    // Setup interactions for the workflow (pan, zoom, etc.)
     setupWorkflowInteractions(workspaceArea);
     
-    // Aggiungi event listener per lo zoom con la rotella del mouse
-    workspaceArea.addEventListener('wheel', handleMouseWheel, { passive: false });
+    // Centro inizialmente il canvas sul punto 5000, 5000 (centro del canvas 10k x 10k)
+    canvasOffsetX = -4500; // Posizione per centrare circa il punto 5000 sulla larghezza
+    canvasOffsetY = -4500; // Posizione per centrare circa il punto 5000 sull'altezza
+    updateCanvasTransform();
     
-    // Aggiungi event listener per il panning del canvas
-    workspaceArea.addEventListener('mousedown', handleCanvasMouseDown);
-    // Mouse move e mouse up vengono aggiunti globalmente quando il panning inizia
+    // Debug per controllare le interazioni del canvas
+    console.log('Canvas inizializzato:', {
+      canvasScale,
+      canvasOffsetX,
+      canvasOffsetY
+    });
+    
+    // Controlla che i listener per il panning siano attivi
+    console.log('Workspace area ID:', workspaceArea.id);
+    
+    // Configurazione aggiuntiva per gli eventi wheel
+    console.log('DEBUG INIT: Configurazione aggiuntiva per eventi wheel sul workspace');
+    
+    // Rimuovi eventuali listener precedenti
+    if (workspaceArea) {
+      workspaceArea.removeEventListener('wheel', handleMouseWheel);
+      
+      // Aggiungi listener per wheel
+      workspaceArea.addEventListener('wheel', handleMouseWheel, { passive: false });
+      
+      // Aggiungi anche un approccio alternativo
+      workspaceArea.addEventListener('mousewheel', function(e) {
+        console.log('DEBUG MOUSEWHEEL: Evento mousewheel rilevato');
+        handleMouseWheel(e);
+      }, { passive: false });
+      
+      // Test di zoom immediato per verificare funzionalità
+      console.log('DEBUG INIT: Test di zoom iniziale');
+      setTimeout(function() {
+        // Incrementa lo zoom leggermente per verificare funzionalità
+        const oldScale = canvasScale;
+        canvasScale = Math.min(canvasScale * 1.05, 5);
+        console.log('DEBUG INIT: Test di zoom - canvasScale da', oldScale, 'a', canvasScale);
+        updateCanvasTransform();
+        
+        // Ripristina lo zoom originale
+        setTimeout(function() {
+          console.log('DEBUG INIT: Ripristino zoom originale');
+          canvasScale = oldScale;
+          updateCanvasTransform();
+        }, 500);
+      }, 2000);
+    }
   }
 }
 
@@ -288,48 +468,175 @@ function cleanupWorkflow() {
   }
 }
 
-// Funzione per gestire lo zoom con la rotella del mouse
+// Gestisce lo zoom con la rotella del mouse
 function handleMouseWheel(e) {
+  console.log('DEBUG WHEEL: Evento wheel intercettato', {
+    deltaY: e.deltaY,
+    deltaMode: e.deltaMode,
+    clientX: e.clientX,
+    clientY: e.clientY,
+    ctrlKey: e.ctrlKey,
+    target: e.target.tagName + (e.target.id ? '#' + e.target.id : '') + (e.target.className ? '.' + e.target.className : '')
+  });
+  
+  // Permetti lo zoom solo se non si sta trascinando una nota o altro elemento interattivo
+  if (isDraggingCanvas || draggedNote || resizingNote || isDraggingMinimap) {
+    console.log('DEBUG WHEEL: Zoom bloccato perché sta trascinando qualcosa');
+    return;
+  }
+  
+  // Previeni il comportamento predefinito
   e.preventDefault();
   
-  // Determina la direzione dello scroll
-  const delta = e.deltaY > 0 ? -1 : 1;
-  
-  // Fattore di zoom più piccolo per un'esperienza più fluida
-  const zoomFactor = 1.05;
-  
-  // Calcola il nuovo scale
-  const newScale = delta > 0 ? canvasScale * zoomFactor : canvasScale / zoomFactor;
-  
-  // Limita lo zoom per evitare valori estremi
-  if (newScale > 0.1 && newScale < 10) {
-    // Ottieni la posizione del mouse rispetto al workspace
-    const workspace = document.getElementById('workflowWorkspace');
-    const rect = workspace.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    
-    // Calcola l'offset relativo al mouse per uno zoom centrato sul punto
-    const scaleChange = newScale / canvasScale;
-    const newOffsetX = mouseX - (mouseX - canvasOffsetX) * scaleChange;
-    const newOffsetY = mouseY - (mouseY - canvasOffsetY) * scaleChange;
-    
-    // Aggiorna i valori globali
-    canvasScale = newScale;
-    canvasOffsetX = newOffsetX;
-    canvasOffsetY = newOffsetY;
-    
-    // Aggiorna la trasformazione
-    updateCanvasTransform();
+  // Ottieni il workspace
+  const workspace = document.getElementById('workflowWorkspace');
+  if (!workspace) {
+    console.error('DEBUG WHEEL: Workspace non trovato per lo zoom');
+    return;
   }
+  
+  // Salva la posizione del mouse rispetto al viewport
+  const rect = workspace.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  
+  console.log('DEBUG WHEEL: Posizione mouse per zoom:', mouseX, mouseY);
+  
+  // Calcola la posizione del mouse nelle coordinate del canvas
+  const oldMouseCanvasX = (mouseX - canvasOffsetX) / canvasScale;
+  const oldMouseCanvasY = (mouseY - canvasOffsetY) / canvasScale;
+  
+  // Determina la direzione dello zoom (positivo = zoom in, negativo = zoom out)
+  const zoomDirection = -Math.sign(e.deltaY);
+  
+  console.log('DEBUG WHEEL: Direzione zoom:', zoomDirection);
+  
+  // Aggiorna il fattore di scala in base alla direzione dello zoom
+  // Aumentiamo la sensibilità dello zoom
+  const zoomFactor = 0.15; // Aumentato da 0.1 per maggiore sensibilità
+  let newScale;
+  
+  if (zoomDirection > 0) {
+    // Zoom in
+    newScale = canvasScale * (1 + zoomFactor);
+  } else {
+    // Zoom out
+    newScale = canvasScale / (1 + zoomFactor);
+  }
+  
+  // Limita la scala min/max
+  const boundedScale = Math.max(0.1, Math.min(5, newScale)); // Aumentato il limite massimo a 5
+  
+  console.log('DEBUG WHEEL: Nuovo fattore di scala:', boundedScale, 'da', canvasScale);
+  
+  // Memorizza la scala precedente per riferimento
+  const oldScale = canvasScale;
+  
+  // Aggiorna la scala
+  canvasScale = boundedScale;
+  
+  // Calcola il nuovo offset per mantenere il punto sotto il mouse fermo
+  canvasOffsetX = mouseX - oldMouseCanvasX * canvasScale;
+  canvasOffsetY = mouseY - oldMouseCanvasY * canvasScale;
+  
+  console.log('DEBUG WHEEL: Nuovi offset canvas:', canvasOffsetX, canvasOffsetY);
+  
+  // Mostra l'indicatore di posizione durante lo zoom
+  const positionIndicator = document.getElementById('positionIndicator');
+  if (positionIndicator) {
+    positionIndicator.classList.add('visible');
+    // Aggiorna il testo dell'indicatore
+    positionIndicator.textContent = `Centro: (varie) | Zoom: ${Math.round(canvasScale * 100)}%`;
+  }
+  
+  // Applica immediatamente la trasformazione al canvas per feedback visivo immediato
+  const workspaceContent = document.getElementById('workflowContent');
+  if (workspaceContent) {
+    workspaceContent.style.transform = `translate(${canvasOffsetX}px, ${canvasOffsetY}px) scale(${canvasScale})`;
+    console.log('DEBUG WHEEL: Trasformazione applicata al workspaceContent');
+  }
+  
+  // Aggiorna le trasformazioni solo se il fattore di scala è cambiato significativamente
+  // Questo riduce il numero di aggiornamenti delle connessioni durante lo zoom continuo
+  if (Math.abs(oldScale - canvasScale) > 0.01) {
+    // Aggiorna la trasformazione del canvas completamente
+  updateCanvasTransform();
+    
+    // Aggiorna le connessioni solo dopo che lo zoom è stato completato
+    // Questo evita aggiornamenti eccessivi delle connessioni durante lo zoom continuo
+    clearTimeout(window.connectionsUpdateTimeout);
+    window.connectionsUpdateTimeout = setTimeout(() => {
+      console.log('DEBUG WHEEL: Aggiornamento delle connessioni dopo zoom');
+      updateAllConnections();
+    }, 100); // Piccolo ritardo per migliorare le prestazioni
+  }
+  
+  console.log('DEBUG WHEEL: Zoom completato con successo');
+  
+  // Nascondi l'indicatore di posizione dopo un breve ritardo
+  clearTimeout(window.positionIndicatorTimeout);
+  window.positionIndicatorTimeout = setTimeout(() => {
+    const positionIndicator = document.getElementById('positionIndicator');
+    if (positionIndicator) {
+      positionIndicator.classList.remove('visible');
+    }
+  }, 1500);
 }
 
-// Funzione per aggiornare la trasformazione del canvas
+// Aggiorna la trasformazione del canvas (zoom e pan)
 function updateCanvasTransform() {
   const workspace = document.getElementById('workflowWorkspace');
-  if (workspace) {
-    workspace.style.transform = `translate(${canvasOffsetX}px, ${canvasOffsetY}px) scale(${canvasScale})`;
+  const workspaceContent = document.getElementById('workflowContent');
+  
+  if (!workspace || !workspaceContent) {
+    console.error('updateCanvasTransform: elementi workspace o workspaceContent non trovati');
+    return;
+  }
+  
+  console.log('Aggiorno la trasformazione del canvas', {
+    canvasScale,
+    canvasOffsetX,
+    canvasOffsetY
+  });
+  
+  const workspaceWidth = workspace.clientWidth;
+  const workspaceHeight = workspace.clientHeight;
+  const scaledContentWidth = 10000 * canvasScale; // Larghezza reale del contenuto canvas scalato
+  const scaledContentHeight = 10000 * canvasScale; // Altezza reale del contenuto canvas scalato
+
+  // Applica limiti di panning migliorati
+  if (scaledContentWidth > workspaceWidth) {
+    // Il contenuto è più largo della viewport
+    canvasOffsetX = Math.max(workspaceWidth - scaledContentWidth, Math.min(0, canvasOffsetX));
+  } else {
+    // Il contenuto è più stretto o uguale alla viewport
+    // Permetti di muoverlo da 0 a (workspaceWidth - scaledContentWidth)
+    canvasOffsetX = Math.max(0, Math.min(workspaceWidth - scaledContentWidth, canvasOffsetX));
+  }
+
+  if (scaledContentHeight > workspaceHeight) {
+    // Il contenuto è più alto della viewport
+    canvasOffsetY = Math.max(workspaceHeight - scaledContentHeight, Math.min(0, canvasOffsetY));
+  } else {
+    // Il contenuto è più basso o uguale alla viewport
+    // Permetti di muoverlo da 0 a (workspaceHeight - scaledContentHeight)
+    canvasOffsetY = Math.max(0, Math.min(workspaceHeight - scaledContentHeight, canvasOffsetY));
+  }
+
+  if (workspace && workspaceContent) {
+    // Applica la trasformazione al contenitore del canvas
+    workspaceContent.style.transform = `translate(${canvasOffsetX}px, ${canvasOffsetY}px) scale(${canvasScale})`;
+    workspaceContent.style.transformOrigin = '0 0';
+    
+    // Aggiorna l'indicatore di posizione usando la funzione dedicata
+    updatePositionIndicator();
+    
+    // Aggiorna la minimappa
     updateMinimap();
+    
+    // IMPORTANTE: Aggiorna tutte le connessioni per assicurarsi che seguano il canvas
+    // Questo risolve il problema delle connessioni che non seguono le note durante lo spostamento
+      updateAllConnections();
   }
 }
 
@@ -415,2922 +722,166 @@ function handleMinimapMouseUp(e) {
   isDraggingMinimap = false;
 }
 
-// Aggiorna la minimappa con la posizione attuale del workspace
+// Aggiorna la minimappa
 function updateMinimap() {
-  if (!minimap || !minimapViewport) return;
-  
   const workspace = document.getElementById('workflowWorkspace');
-  if (!workspace) return;
+  const workspaceContent = document.getElementById('workflowContent');
+  const minimapViewport = document.querySelector('.workflow-minimap-viewport');
+  const minimapContent = document.querySelector('.workflow-minimap-content');
+  
+  if (!workspace || !workspaceContent || !minimapViewport || !minimapContent) return;
+  
+  // Dimensioni del canvas intero (10k x 10k)
+  const canvasWidth = 10000;
+  const canvasHeight = 10000;
+  
+  // Dimensioni della viewport
+  const viewportWidth = workspace.clientWidth;
+  const viewportHeight = workspace.clientHeight;
+  
+  // Dimensioni della minimappa
+  const minimapWidth = 220; // da .workflow-minimap nel CSS
+  const minimapHeight = 140;
+  
+  // Calcola il rapporto tra minimappa e canvas
+  const minimapRatio = Math.min(minimapWidth / canvasWidth, minimapHeight / canvasHeight);
+  
+  // Calcola la posizione e dimensione della viewport nella minimappa
+  const viewportMinimapWidth = (viewportWidth / canvasScale) * minimapRatio;
+  const viewportMinimapHeight = (viewportHeight / canvasScale) * minimapRatio;
+  
+  // Posizione del viewport nella minimappa
+  const viewportMinimapX = (-canvasOffsetX / canvasScale) * minimapRatio;
+  const viewportMinimapY = (-canvasOffsetY / canvasScale) * minimapRatio;
+  
+  // Aggiorna lo stile del viewport della minimappa
+  minimapViewport.style.width = `${viewportMinimapWidth}px`;
+  minimapViewport.style.height = `${viewportMinimapHeight}px`;
+  minimapViewport.style.left = `${viewportMinimapX}px`;
+  minimapViewport.style.top = `${viewportMinimapY}px`;
+  
+  // Aggiorna la scala del contenuto della minimappa
+  minimapContent.style.transform = `scale(${minimapRatio})`;
+  minimapContent.style.width = `${canvasWidth}px`;
+  minimapContent.style.height = `${canvasHeight}px`;
+  
+  // Aggiorna le rappresentazioni delle note nella minimappa
+  updateMinimapNotes();
+}
+
+// Aggiorna la rappresentazione delle note nella minimappa
+function updateMinimapNotes() {
+  const minimap = document.querySelector('.workflow-minimap-content');
+  if (!minimap) return;
+  
+  // Rimuovi tutte le rappresentazioni precedenti
+  const oldMinimapNotes = minimap.querySelectorAll('.minimap-note');
+  oldMinimapNotes.forEach(note => note.remove());
   
   // Ottieni tutte le note nel workspace
-  const notes = workspace.querySelectorAll('.workspace-note, .workspace-ai-node');
-  
-  // Aggiorna il contenuto della minimappa
-  const minimapContent = minimap.querySelector('.workflow-minimap-content');
-  if (minimapContent) {
-    // Pulisci il contenuto precedente
-    minimapContent.innerHTML = '';
-    
-    // Se non ci sono note, non c'è nulla da visualizzare
-    if (notes.length === 0) return;
-    
-    // Calcola i limiti del contenuto
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    
-    notes.forEach(note => {
-      const rect = note.getBoundingClientRect();
-      const workspaceRect = workspace.getBoundingClientRect();
-      
-      // Posizione nel sistema di coordinate del workspace
-      const noteX = (rect.left - workspaceRect.left) / canvasScale - canvasOffsetX / canvasScale;
-      const noteY = (rect.top - workspaceRect.top) / canvasScale - canvasOffsetY / canvasScale;
-      const noteWidth = rect.width / canvasScale;
-      const noteHeight = rect.height / canvasScale;
-      
-      // Aggiorna i limiti
-      minX = Math.min(minX, noteX);
-      minY = Math.min(minY, noteY);
-      maxX = Math.max(maxX, noteX + noteWidth);
-      maxY = Math.max(maxY, noteY + noteHeight);
-      
-      // Crea una rappresentazione nella minimappa
-      const miniNote = document.createElement('div');
-      miniNote.className = note.classList.contains('workspace-note') ? 'minimap-note' : 'minimap-node';
-      
-      // Applica posizione e dimensioni scalate
-      miniNote.style.position = 'absolute';
-      miniNote.style.backgroundColor = note.classList.contains('workspace-note') ? '#5c5cff' : '#ff5c5c';
-      
-      minimapContent.appendChild(miniNote);
-    });
-    
-    // Calcola le dimensioni totali del contenuto
-    const contentWidth = Math.max(1000, maxX - minX);
-    const contentHeight = Math.max(600, maxY - minY);
-    
-    // Calcola il fattore di scala per la minimappa
-    const minimapWidth = minimap.offsetWidth;
-    const minimapHeight = minimap.offsetHeight;
-    minimapScale = Math.min(minimapWidth / contentWidth, minimapHeight / contentHeight) * 0.9;
-    
-    // Aggiorna le posizioni delle note nella minimappa
-    notes.forEach((note, index) => {
-      const rect = note.getBoundingClientRect();
-      const workspaceRect = workspace.getBoundingClientRect();
-      
-      // Posizione nel sistema di coordinate del workspace
-      const noteX = (rect.left - workspaceRect.left) / canvasScale - canvasOffsetX / canvasScale;
-      const noteY = (rect.top - workspaceRect.top) / canvasScale - canvasOffsetY / canvasScale;
-      const noteWidth = rect.width / canvasScale;
-      const noteHeight = rect.height / canvasScale;
-      
-      // Applica posizione e dimensioni scalate
-      const miniNote = minimapContent.children[index];
-      miniNote.style.left = ((noteX - minX) * minimapScale) + 'px';
-      miniNote.style.top = ((noteY - minY) * minimapScale) + 'px';
-      miniNote.style.width = (noteWidth * minimapScale) + 'px';
-      miniNote.style.height = (noteHeight * minimapScale) + 'px';
-    });
-    
-    // Aggiorna il viewport della minimappa
-    const viewportWidth = Math.min(minimapWidth / minimapScale, contentWidth) * minimapScale;
-    const viewportHeight = Math.min(minimapHeight / minimapScale, contentHeight) * minimapScale;
-    
-    // Posiziona il viewport in base alla posizione corrente della vista
-    const viewportX = ((-canvasOffsetX / canvasScale) - minX) * minimapScale;
-    const viewportY = ((-canvasOffsetY / canvasScale) - minY) * minimapScale;
-    
-    // Applica dimensioni e posizione del viewport
-    minimapViewport.style.width = viewportWidth + 'px';
-    minimapViewport.style.height = viewportHeight + 'px';
-    minimapViewport.style.left = Math.max(0, Math.min(minimapWidth - viewportWidth, viewportX)) + 'px';
-    minimapViewport.style.top = Math.max(0, Math.min(minimapHeight - viewportHeight, viewportY)) + 'px';
-  }
-}
-
-// Setup event listeners for dragging, resizing, and clicking (NOTES/NODES)
-function setupWorkflowInteractions(workspace) {
-  // 1. Handle note/node dragging (mousedown is handled by specific elements like headers)
-  // workspace.addEventListener('mousedown', handleNoteMouseDown); // Moved specific handlers
-  document.addEventListener('mousemove', handleNoteMouseMove); // Handles both note/node move
-  document.addEventListener('mouseup', handleNoteMouseUp); // Handles both note/node mouseup
-
-  // 2. Handle clicking inside notes and blocks (for selection/focus)
-  workspace.addEventListener('click', handleWorkspaceClick);
-  
-  // 3. Handle note content edits
-  workspace.addEventListener('input', handleNoteContentEdit);
-  
-  // 4. Handle keydown in blocks
-  workspace.addEventListener('keydown', handleBlockKeyDown);
-  
-  // 5. Handle block drag & drop
-  workspace.addEventListener('mousedown', handleBlockDragStart);
-  
-  // 6. Prevent default drag behavior for images
-  workspace.addEventListener('dragstart', (e) => {
-    if (e.target.tagName === 'IMG') {
-      e.preventDefault();
-    }
-  });
-  
-  // Close block menu when clicking outside
-  document.addEventListener('click', (e) => {
-    const addBlockMenu = document.querySelector('.add-block-menu');
-    if (addBlockMenu && !e.target.closest('.add-block-menu') && !e.target.closest('.block-action') && !e.target.closest('.workflow-vertical-toolbar')) {
-      addBlockMenu.remove();
-      addBlockMenuOpen = false;
-    }
-  });
-  
-  // Initialize Add Between buttons on note insertion
-  workspace.addEventListener('DOMNodeInserted', (e) => {
-    if (e.target.classList && e.target.classList.contains('workspace-note')) {
-      initializeAddBetweenButtons(e.target);
-      const noteTitle = e.target.querySelector('.note-title');
-      if (noteTitle) {
-        setupNoteTitleEditing(noteTitle, e.target.id);
-      }
-    }
-  });
-}
-
-// Handle mousedown on CANVAS BACKGROUND for panning
-function handleCanvasMouseDown(e) {
-  // Check if the click was directly on the workspace background
-  // or on the grid pseudo-element, avoiding notes, nodes, toolbar, etc.
-  if (e.target.id === 'workflowWorkspace') {
-    // Check for middle mouse button or specific pan activation (e.g., spacebar + click)
-    // For now, let's use the primary button (left click)
-    if (e.button === 0) { 
-      isDraggingCanvas = true;
-      canvasDragStartX = e.clientX;
-      canvasDragStartY = e.clientY;
-      // Store initial offset for smoother drag calculation
-      initialCanvasOffsetX = canvasOffsetX;
-      initialCanvasOffsetY = canvasOffsetY;
-      
-      const workspace = document.getElementById('workflowWorkspace');
-      if(workspace) workspace.classList.add('panning');
-
-      // Add global listeners for move and up
-      document.addEventListener('mousemove', handleCanvasMouseMove);
-      document.addEventListener('mouseup', handleCanvasMouseUp);
-      
-      e.preventDefault(); // Prevent text selection or other default actions
-    }
-  }
-}
-
-// Handle mouse move for CANVAS PANNING
-function handleCanvasMouseMove(e) {
-  if (!isDraggingCanvas) return;
-
-  e.preventDefault();
-
-  const deltaX = e.clientX - canvasDragStartX;
-  const deltaY = e.clientY - canvasDragStartY;
-
-  // Update canvas offset: Move canvas content opposite to mouse direction
-  // Use initial offsets for direct mapping from start point
-  canvasOffsetX = initialCanvasOffsetX + deltaX;
-  canvasOffsetY = initialCanvasOffsetY + deltaY;
-
-  // Apply the new transform
-  updateCanvasTransform();
-}
-
-// Handle mouse up for CANVAS PANNING
-function handleCanvasMouseUp(e) {
-  if (isDraggingCanvas) {
-    isDraggingCanvas = false;
-    const workspace = document.getElementById('workflowWorkspace');
-      if(workspace) workspace.classList.remove('panning');
-      
-    // Remove global listeners
-    document.removeEventListener('mousemove', handleCanvasMouseMove);
-    document.removeEventListener('mouseup', handleCanvasMouseUp);
-    
-    e.preventDefault();
-  }
-}
-
-
-// Gestisce il movimento durante il trascinamento della minimappa
-function handleMinimapMouseMove(e) {
-  if (!isDraggingMinimap) return;
-
-  e.preventDefault();
-
-  const minimapRect = minimap.getBoundingClientRect();
-  const minimapContent = minimap.querySelector('.workflow-minimap-content');
-  if (!minimapContent) return;
-  
-  // Calculate mouse position relative to minimap content area
-  let relativeX = e.clientX - minimapRect.left;
-  let relativeY = e.clientY - minimapRect.top;
-  
-  // Clamp position within minimap bounds
-  relativeX = Math.max(0, Math.min(minimapRect.width, relativeX));
-  relativeY = Math.max(0, Math.min(minimapRect.height, relativeY));
-  
-  // Calculate the corresponding center position in the workspace coordinates
-  const workspaceCenterX = (relativeX / minimapScale) + contentMinX; // Need contentMinX from updateMinimap
-  const workspaceCenterY = (relativeY / minimapScale) + contentMinY; // Need contentMinY from updateMinimap
-  
-  // Calculate the required offset to center the view on this point
-  const viewportWidth = window.innerWidth / canvasScale;
-  const viewportHeight = window.innerHeight / canvasScale;
-  
-  canvasOffsetX = -(workspaceCenterX - viewportWidth / 2) * canvasScale;
-  canvasOffsetY = -(workspaceCenterY - viewportHeight / 2) * canvasScale;
-  
-  updateCanvasTransform();
-}
-
-// Setup note title editing with proper saving
-function setupNoteTitleEditing(titleElement, noteId) {
-  // Ensure the contentEditable is set
-  titleElement.contentEditable = true;
-
-  // Store the initial title if not already set
-  if (!(noteId in noteTitles)) {
-      noteTitles[noteId] = titleElement.textContent || 'Nuova Nota';
-  }
-
-  // Handle focus entering the title
-  titleElement.addEventListener('focus', () => {
-    // Select all text when focused
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(titleElement);
-    selection.removeAllRanges();
-    selection.addRange(range);
-
-    // Add the editing class
-    titleElement.classList.add('editing');
-  });
-
-  // Handle focus leaving the title - Save only if changed
-  titleElement.addEventListener('blur', () => {
-    titleElement.classList.remove('editing');
-    const originalTitle = noteTitles[noteId]; // Get the last saved title
-    let newTitle = titleElement.textContent.trim();
-
-    // If the title is empty after trimming, revert to the last saved title or default
-    if (!newTitle) {
-      newTitle = originalTitle || 'Nuova Nota';
-      titleElement.textContent = newTitle; // Update the element visually
-    }
-
-    // Save the potentially updated title only if it actually changed
-    if (originalTitle !== newTitle) {
-        console.log(`Saving title for note ${noteId}: '${newTitle}' (was '${originalTitle}')`);
-        noteTitles[noteId] = newTitle;
-        // Trigger saveNoteState to persist the title change along with other note data
-        saveNoteState(noteId);
-    }
-  });
-
-  // Handle Enter key to finish editing
-  titleElement.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault(); // Prevent creating new line
-      titleElement.blur(); // Remove focus to trigger blur (and save)
-    }
-  });
-
-  // Remove the input listener - saving on blur is sufficient and more performant
-  // titleElement.addEventListener('input', () => {
-  //   const newTitle = titleElement.textContent.trim();
-  //   noteTitles[noteId] = newTitle || 'Nuova Nota';
-  // });
-}
-
-// Handle mousedown on notes for dragging and resizing
-function handleNoteMouseDown(e) {
-  console.log('MouseDown event:', {
-    type: e.type, 
-    target: e.target, 
-    timestamp: new Date().toISOString(),
-    position: {x: e.clientX, y: e.clientY},
-    note: e.target.closest('.workspace-note')?.id
-  });
-  // Windows 11 specific: ensure we have a valid event
-  if (!e || !e.clientX || !e.clientY) return;
-  
-  // Find if we're clicking on a note or inside a note
-  const note = e.target.closest('.workspace-note');
-  if (!note) return;
-
-  // Set active note
-  setActiveNote(note.id);
-
-  // Check if we're clicking a resize handle
-  const resizeHandle = e.target.closest('.resize-handle, .note-resize-handle');
-  if (resizeHandle) {
-    resizingNote = note;
-
-    // Get the resize direction from the handle's class
-    if (resizeHandle.classList.contains('top-left')) resizeDirection = 'top-left';
-    else if (resizeHandle.classList.contains('top-right')) resizeDirection = 'top-right';
-    else if (resizeHandle.classList.contains('bottom-left')) resizeDirection = 'bottom-left';
-    else if (resizeHandle.classList.contains('bottom-right') || resizeHandle.classList.contains('note-resize-handle')) resizeDirection = 'bottom-right';
-    else if (resizeHandle.classList.contains('top')) resizeDirection = 'top';
-    else if (resizeHandle.classList.contains('right')) resizeDirection = 'right';
-    else if (resizeHandle.classList.contains('bottom')) resizeDirection = 'bottom';
-    else if (resizeHandle.classList.contains('left')) resizeDirection = 'left';
-
-    // Store initial mouse position and note size/position
-    initialMouseX = e.clientX;
-    initialMouseY = e.clientY;
-    initialNoteRect = note.getBoundingClientRect(); // Use rect for size calculation
-    const computedStyle = window.getComputedStyle(note);
-    const matrix = new DOMMatrix(computedStyle.transform);
-    initialNoteTransform = { x: matrix.m41, y: matrix.m42 }; // Store initial transform for position calculation
-
-    // Add resizing class to the body to enable the overlay
-    document.body.classList.add('resizing');
-    note.classList.add('resizing');
-    note.style.willChange = 'transform, width, height'; // Optimize resizing
-
-    // Create an overlay to capture mouse events outside the note
-    let overlay = document.querySelector('.resize-overlay');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.className = 'resize-overlay';
-      document.body.appendChild(overlay);
-    }
-
-    // Set the cursor on the overlay based on resize direction
-    if (resizeDirection === 'top-left' || resizeDirection === 'bottom-right') overlay.style.cursor = 'nwse-resize';
-    else if (resizeDirection === 'top-right' || resizeDirection === 'bottom-left') overlay.style.cursor = 'nesw-resize';
-    else if (resizeDirection === 'top' || resizeDirection === 'bottom') overlay.style.cursor = 'ns-resize';
-    else if (resizeDirection === 'left' || resizeDirection === 'right') overlay.style.cursor = 'ew-resize';
-
-    e.preventDefault();
-    return;
-  }
-
-  // Check if we're clicking the header (for dragging)
-  const header = e.target.closest('.note-header');
-  const title = e.target.closest('.note-title'); // Check if click is on editable title
-
-  // Start dragging only if clicking header but NOT the editable title itself
-  if (header && (!title || !title.isContentEditable || title.classList.contains('editing') === false)) {
-    draggedNote = note;
-    const workspace = document.getElementById('workflowWorkspace');
-    if (!workspace) return;
-    const workspaceRect = workspace.getBoundingClientRect();
-
-    // Store initial transform for smooth continuation of movement
-    const computedStyle = window.getComputedStyle(note);
-    const matrix = new DOMMatrix(computedStyle.transform || 'matrix(1, 0, 0, 1, 0, 0)');
-    initialNoteTransform = { x: matrix.m41, y: matrix.m42 };
-
-    // Calculate offset relative to the note's top-left corner, considering transform
-    dragOffsetX = e.clientX - workspaceRect.left - initialNoteTransform.x;
-    dragOffsetY = e.clientY - workspaceRect.top - initialNoteTransform.y;
-
-    // Apply dragging class and improve GPU acceleration
-    note.classList.add('dragging');
-    note.style.zIndex = "100"; // Bring to front
-    note.style.willChange = "transform"; // Hint browser for optimization
-    document.body.classList.add('dragging-note'); // Global cursor
-
-    // Initialize current drag position to the starting transform
-    currentDragX = initialNoteTransform.x;
-    currentDragY = initialNoteTransform.y;
-
-    // Start the animation frame loop for dragging
-    if (!rafId) {
-      rafId = requestAnimationFrame(updateDraggedNotePosition);
-    }
-
-    e.preventDefault(); // Prevent text selection during drag
-  }
-}
-
-// Handle note mouse move with optimized performance
-function handleNoteMouseMove(e) {
-  console.log('MouseMove event:', {
-    type: e.type,
-    timestamp: new Date().toISOString(),
-    position: {x: e.clientX, y: e.clientY},
-    draggedNote: draggedNote?.id,
-    dragOffset: {x: dragOffsetX, y: dragOffsetY}
-  });
-  // Windows 11 specific: ensure we have a valid event
-  if (!e || !e.clientX || !e.clientY) return;
-  
-  // 1. Handle Resizing (using transform)
-  if (resizingNote && initialNoteRect && initialNoteTransform) {
-    const dx = e.clientX - initialMouseX;
-    const dy = e.clientY - initialMouseY;
-    let newWidth = initialNoteRect.width;
-    let newHeight = initialNoteRect.height;
-    let newX = initialNoteTransform.x;
-    let newY = initialNoteTransform.y;
-
-    // Define minimum size
-    const minWidth = 150;
-    const minHeight = 100;
-
-    // Adjust dimensions and position based on resize direction
-    if (resizeDirection.includes('right')) {
-      newWidth = Math.max(minWidth, initialNoteRect.width + dx);
-    } else if (resizeDirection.includes('left')) {
-      const potentialWidth = initialNoteRect.width - dx;
-      if (potentialWidth >= minWidth) {
-        newWidth = potentialWidth;
-        newX = initialNoteTransform.x + dx;
-      } else {
-        newWidth = minWidth;
-        newX = initialNoteTransform.x + (initialNoteRect.width - minWidth);
-      }
-    }
-
-    if (resizeDirection.includes('bottom')) {
-      newHeight = Math.max(minHeight, initialNoteRect.height + dy);
-    } else if (resizeDirection.includes('top')) {
-      const potentialHeight = initialNoteRect.height - dy;
-      if (potentialHeight >= minHeight) {
-        newHeight = potentialHeight;
-        newY = initialNoteTransform.y + dy;
-      } else {
-        newHeight = minHeight;
-        newY = initialNoteTransform.y + (initialNoteRect.height - minHeight);
-      }
-    }
-
-    // Apply new styles using transform and requestAnimationFrame
-    // Cancel previous frame to avoid backlog, apply in next available frame
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = requestAnimationFrame(() => {
-        if (!resizingNote) return; // Check if resizing was cancelled
-        resizingNote.style.width = `${newWidth}px`;
-        resizingNote.style.height = `${newHeight}px`;
-        resizingNote.style.transform = `translate(${newX}px, ${newY}px)`;
-    });
-
-    e.preventDefault();
-    return;
-  }
-
-  // 2. Handle Dragging (Update target position for animation frame)
-  if (draggedNote) {
-    const workspace = document.getElementById('workflowWorkspace');
-    if (!workspace) return;
-    const workspaceRect = workspace.getBoundingClientRect();
-
-    // Calculate new target position relative to the workspace
-    currentDragX = e.clientX - workspaceRect.left - dragOffsetX;
-    currentDragY = e.clientY - workspaceRect.top - dragOffsetY;
-
-    // Optional: Constrain position within workspace boundaries (add margin)
-    currentDragX = Math.max(30, currentDragX); // Ensure minimum left margin
-    currentDragY = Math.max(0, currentDragY);
-    // Consider adding right/bottom constraints if needed
-    // const noteWidth = draggedNote.offsetWidth;
-    // const noteHeight = draggedNote.offsetHeight;
-    // currentDragX = Math.min(currentDragX, workspaceRect.width - noteWidth);
-    // currentDragY = Math.min(currentDragY, workspaceRect.height - noteHeight);
-
-    // The actual transform update happens in the updateDraggedNotePosition loop
-    // Ensure the loop is running (it's started on mousedown)
-    if (!rafId) {
-        rafId = requestAnimationFrame(updateDraggedNotePosition);
-    }
-
-    e.preventDefault();
-  }
-}
-
-// Handle end of drag or resize with proper cleanup
-function handleNoteMouseUp(e) {
-  console.log('MouseUp event:', {
-    type: e.type,
-    timestamp: new Date().toISOString(),
-    position: {x: e.clientX, y: e.clientY},
-    draggedNote: draggedNote?.id,
-    resizingNote: resizingNote?.id
-  });
-  // 1. End Resizing
-  if (resizingNote) {
-    if (rafId) cancelAnimationFrame(rafId); // Cancel any pending resize frame
-    rafId = null;
-
-    // Apply final size/position from the last mouse move calculation before saving
-    // This ensures the state reflects the visual state if mouseup happens between frames
-    // Use clientX/Y from the event for final calculation
-    const dx = e.clientX - initialMouseX;
-    const dy = e.clientY - initialMouseY;
-    let finalWidth = initialNoteRect.width;
-    let finalHeight = initialNoteRect.height;
-    let finalX = initialNoteTransform.x;
-    let finalY = initialNoteTransform.y;
-    const minWidth = 150, minHeight = 100;
-
-    if (resizeDirection.includes('right')) finalWidth = Math.max(minWidth, initialNoteRect.width + dx);
-    else if (resizeDirection.includes('left')) {
-        const potentialWidth = initialNoteRect.width - dx;
-        if (potentialWidth >= minWidth) { finalWidth = potentialWidth; finalX = initialNoteTransform.x + dx; }
-        else { finalWidth = minWidth; finalX = initialNoteTransform.x + (initialNoteRect.width - minWidth); }
-    }
-    if (resizeDirection.includes('bottom')) finalHeight = Math.max(minHeight, initialNoteRect.height + dy);
-    else if (resizeDirection.includes('top')) {
-        const potentialHeight = initialNoteRect.height - dy;
-        if (potentialHeight >= minHeight) { finalHeight = potentialHeight; finalY = initialNoteTransform.y + dy; }
-        else { finalHeight = minHeight; finalY = initialNoteTransform.y + (initialNoteRect.height - minHeight); }
-    }
-    // Apply final calculated styles
-    resizingNote.style.width = `${finalWidth}px`;
-    resizingNote.style.height = `${finalHeight}px`;
-    resizingNote.style.transform = `translate(${finalX}px, ${finalY}px)`;
-
-    // Clean up styles and classes
-    resizingNote.classList.remove('resizing');
-    resizingNote.style.willChange = ''; // Remove optimization hint
-    document.body.classList.remove('resizing');
-
-    // Remove the overlay
-    const overlay = document.querySelector('.resize-overlay');
-    if (overlay) overlay.remove();
-
-    // Save the new size and position
-    saveNoteState(resizingNote.id);
-
-    // Clear resizing state
-    resizingNote = null;
-    resizeDirection = null;
-    initialNoteRect = null;
-    initialNoteTransform = null;
-    initialMouseX = 0;
-    initialMouseY = 0;
-    e.preventDefault();
-    return;
-  }
-
-  // 2. End Dragging
-  if (draggedNote) {
-    // Stop the animation frame loop
-    if (rafId) {
-      cancelAnimationFrame(rafId);
-      rafId = null;
-    }
-
-    // Apply the final calculated position directly before saving
-    const workspace = document.getElementById('workflowWorkspace');
-    if (workspace) {
-        const workspaceRect = workspace.getBoundingClientRect();
-        currentDragX = e.clientX - workspaceRect.left - dragOffsetX;
-        currentDragY = e.clientY - workspaceRect.top - dragOffsetY;
-        
-        // Apply constraints for the final position
-        currentDragX = Math.max(30, currentDragX);
-        currentDragY = Math.max(0, currentDragY);
-        
-        // Ensure smooth transition by applying transform directly
-        draggedNote.style.transform = `translate(${currentDragX}px, ${currentDragY}px)`;
-        
-        // Force layout update before saving state
-        draggedNote.getBoundingClientRect();
-    }
-
-    // Remove dragging styles and hints
-    draggedNote.classList.remove('dragging');
-    draggedNote.style.zIndex = '';
-    draggedNote.style.willChange = '';
-    document.body.classList.remove('dragging-note');
-
-    // Save the final position
-    saveNoteState(draggedNote.id);
-
-    // Clear all dragging state variables
-    draggedNote = null;
-    initialNoteTransform = null;
-    dragOffsetX = 0;
-    dragOffsetY = 0;
-    currentDragX = 0;
-    currentDragY = 0;
-
-    e.preventDefault();
-  }
-
-  // 3. Always clean up any remaining states
-  if (rafId) {
-    cancelAnimationFrame(rafId);
-    rafId = null;
-  }
-  document.body.classList.remove('dragging-note', 'resizing');
-  const overlay = document.querySelector('.resize-overlay');
-  if (overlay) overlay.remove();
-// Reuse existing overlay reference from above
-let resizeOverlay = document.querySelector('.resize-overlay');
-  if (overlay) overlay.remove();
-}
-
-// Animation frame update function for smooth dragging
-function updateDraggedNotePosition() {
-  if (!draggedNote) {
-    rafId = null; // Stop the loop if dragging stopped
-    return;
-  }
-
-  // Apply the current target position using transform
-  // Use translate for potentially better compatibility than translate3d if z is not needed
-  draggedNote.style.transform = `translate(${currentDragX}px, ${currentDragY}px)`;
-
-  // Request the next frame ONLY if still dragging
-  rafId = requestAnimationFrame(updateDraggedNotePosition);
-}
-
-// Handle end of drag or resize with proper cleanup
-function handleNoteMouseUp_Original(e) { // Renamed original function temporarily
-  if (draggedNote) {
-    // Cancel any pending animation frame
-    if (rafId) {
-      cancelAnimationFrame(rafId);
-      rafId = null;
-    }
-    
-    // Get current transform position
-    const computedStyle = window.getComputedStyle(draggedNote);
-    const matrix = new DOMMatrix(computedStyle.transform);
-    
-    // Apply final position as left/top after animation is done
-    // IMPORTANT: This part is problematic and replaced by saving transform
-    // draggedNote.style.left = `${matrix.m41}px`;
-    // draggedNote.style.top = `${matrix.m42}px`;
-    
-    // Clean up
-    draggedNote.classList.remove('dragging');
-    draggedNote.style.zIndex = "";
-    draggedNote.style.willChange = "";
-    // Save state AFTER cleanup and applying final position
-    saveNoteState(draggedNote.id);
-    draggedNote = null;
-  }
-  
-  if (resizingNote) {
-    // Cancel any pending animation frame
-    if (rafId) {
-      cancelAnimationFrame(rafId);
-      rafId = null;
-    }
-    
-    // Get final transform position
-    const computedStyle = window.getComputedStyle(resizingNote);
-    const matrix = new DOMMatrix(computedStyle.transform);
-    
-    // Apply final position as left/top
-    resizingNote.style.left = `${matrix.m41}px`;
-    resizingNote.style.top = `${matrix.m42}px`;
-    
-    // Remove resizing class and overlay
-    document.body.classList.remove('resizing');
-    resizingNote.classList.remove('resizing');
-    
-    const overlay = document.querySelector('.resize-overlay');
-    if (overlay && overlay.parentNode) {
-      overlay.parentNode.removeChild(overlay);
-    }
-    
-    resizingNote.style.willChange = "";
-    resizingNote = null;
-    resizeDirection = null;
-    initialMouseX = 0;
-    initialMouseY = 0;
-    initialNoteRect = null;
-    initialNoteTransform = null;
-  }
-}
-
-// Handle clicks inside the workspace
-function handleWorkspaceClick(e) {
-  // Se siamo in modalità documento, controlla se è stato cliccato fuori dal documento
-  if (isDocumentMode) {
-    const documentContent = document.querySelector('.document-content');
-    if (documentContent && !documentContent.contains(e.target) && !e.target.closest('.document-toolbar')) {
-      // Solo se è stato cliccato fuori dal contenuto e dalla toolbar, torniamo alla vista canvas
-      exitDocumentMode();
-      return;
-    }
-  }
-  
-  // Verifica se è stata cliccata una nota o un blocco di testo
-  const noteBlock = e.target.closest('.note-block');
-  if (noteBlock) {
-    // Se è stata cliccata una nota, gestisci il click sul blocco
-    handleNoteBlockClick(noteBlock);
-    return;
-  }
-  
-  // Deseleziona tutte le note se si clicca fuori
   const notes = document.querySelectorAll('.workspace-note');
-  notes.forEach(note => note.classList.remove('selected'));
   
-  // Deseleziona il blocco attualmente focalizzato
-  if (blockFocused) {
-    blockFocused.classList.remove('focused');
-    blockFocused = null;
-  }
-  
-  // Deseleziona la nota attiva
-  activeNoteId = null;
-}
-
-// Gestisce il click su un blocco di una nota
-function handleNoteBlockClick(block) {
-  // Ottieni la nota contenente il blocco
-  const note = block.closest('.workspace-note');
-  if (!note) return;
-  
-  // Imposta la nota come attiva
-  setActiveNote(note.id);
-  
-  // Se il blocco non è focalizzato, focalizzalo
-  if (blockFocused !== block) {
-    if (blockFocused) {
-      blockFocused.classList.remove('focused');
-    }
-    
-    block.classList.add('focused');
-    blockFocused = block;
-    
-    // Focalizza il contenuto del blocco per l'editing
-    const blockContent = block.querySelector('.block-content');
-    if (blockContent && !blockContent.contains(document.activeElement)) {
-      blockContent.focus();
-    }
-  }
-  
-  // Se è un doppio click sulla nota, passa alla modalità documento
-  if (e.detail === 2) {
-    enterDocumentMode(note);
-  }
-}
-
-// Passa dalla vista canvas alla modalità documento
-function enterDocumentMode(note) {
-    const workspaceEl = document.querySelector('.workflow-workspace');
-    
-    // Store current workspace state to restore later
-    const canvasState = {
-        scrollTop: workspaceEl.scrollTop,
-        scrollLeft: workspaceEl.scrollLeft,
-        scale: canvasScale,
-        translateX: canvasOffsetX,
-        translateY: canvasOffsetY
-    };
-    sessionStorage.setItem('canvasState', JSON.stringify(canvasState));
-    
-    // Nascondi solo gli elementi del canvas, non l'intera applicazione
-    document.querySelectorAll('.workspace-note, .workspace-ai-node, svg.connector').forEach(el => {
-        el.style.visibility = 'hidden';
-    });
-    
-    // Crea l'overlay del documento
-    const overlay = document.createElement('div');
-    overlay.className = 'document-mode-overlay';
-    overlay.id = 'documentOverlay';
-    
-    // Ottieni il centro container, che è il parent del workspace
-    const centerContainer = workspaceEl.parentElement;
-    if (centerContainer) {
-        // Inserisci l'overlay come figlio diretto del center container
-        // Questo lo posizionerà correttamente sopra workspace e toolbar
-        centerContainer.appendChild(overlay);
-    } else {
-        // Fallback al body se non troviamo il container
-        document.body.appendChild(overlay);
-    }
-    
-    // Create top toolbar
-    const topToolbar = document.createElement('div');
-    topToolbar.className = 'document-top-toolbar';
-    
-    const topToolbarLeft = document.createElement('div');
-    topToolbarLeft.className = 'document-top-toolbar-left';
-    
-    const backBtn = document.createElement('button');
-    backBtn.className = 'doc-back-btn';
-    backBtn.innerHTML = '<i class="fas fa-arrow-left"></i>';
-    backBtn.addEventListener('click', exitDocumentMode);
-    
-    const titleContainer = document.createElement('div');
-    titleContainer.className = 'document-title-container';
-    
-    const titleInput = document.createElement('input');
-    titleInput.className = 'document-title-input';
-    titleInput.type = 'text';
-    titleInput.value = note.querySelector('.note-title').textContent;
-    titleInput.addEventListener('input', (e) => {
-        note.querySelector('.note-title').textContent = e.target.value;
-        showSavingStatus();
-    });
-    
-    titleContainer.appendChild(titleInput);
-    topToolbarLeft.appendChild(backBtn);
-    topToolbarLeft.appendChild(titleContainer);
-    
-    const topToolbarRight = document.createElement('div');
-    topToolbarRight.className = 'document-top-toolbar-right';
-    
-    const saveStatus = document.createElement('div');
-    saveStatus.className = 'document-save-status';
-    saveStatus.innerHTML = '<i class="fas fa-check-circle"></i> Saved';
-    
-    const shareBtn = document.createElement('button');
-    shareBtn.className = 'document-toolbar-btn';
-    shareBtn.innerHTML = '<i class="fas fa-share-alt"></i>';
-    shareBtn.title = 'Share';
-    
-    const commentBtn = document.createElement('button');
-    commentBtn.className = 'document-toolbar-btn';
-    commentBtn.innerHTML = '<i class="fas fa-comment"></i>';
-    commentBtn.title = 'Comments';
-    
-    const moreBtn = document.createElement('button');
-    moreBtn.className = 'document-more-btn';
-    moreBtn.innerHTML = '<i class="fas fa-ellipsis-h"></i>';
-    moreBtn.title = 'More options';
-    
-    topToolbarRight.appendChild(saveStatus);
-    topToolbarRight.appendChild(shareBtn);
-    topToolbarRight.appendChild(commentBtn);
-    topToolbarRight.appendChild(moreBtn);
-    
-    topToolbar.appendChild(topToolbarLeft);
-    topToolbar.appendChild(topToolbarRight);
-    
-    // Create formatting toolbar
-    const formatToolbar = document.createElement('div');
-    formatToolbar.className = 'document-format-toolbar';
-    
-    // Text format options group
-    const textFormatGroup = document.createElement('div');
-    textFormatGroup.className = 'toolbar-group';
-    
-    const formatSelect = document.createElement('select');
-    formatSelect.className = 'format-select';
-    
-    const options = [
-        { value: 'paragraph', text: 'Normal text' },
-        { value: 'heading', text: 'Heading 1' },
-        { value: 'subheading', text: 'Heading 2' },
-        { value: 'subheading3', text: 'Heading 3' }
-    ];
-    
-    options.forEach(opt => {
-        const option = document.createElement('option');
-        option.value = opt.value;
-        option.textContent = opt.text;
-        formatSelect.appendChild(option);
-    });
-    
-    textFormatGroup.appendChild(formatSelect);
-    
-    // Style options group
-    const styleGroup = document.createElement('div');
-    styleGroup.className = 'toolbar-group';
-    
-    const boldBtn = document.createElement('button');
-    boldBtn.className = 'document-toolbar-btn';
-    boldBtn.innerHTML = '<i class="fas fa-bold"></i>';
-    boldBtn.title = 'Bold';
-    
-    const italicBtn = document.createElement('button');
-    italicBtn.className = 'document-toolbar-btn';
-    italicBtn.innerHTML = '<i class="fas fa-italic"></i>';
-    italicBtn.title = 'Italic';
-    
-    const underlineBtn = document.createElement('button');
-    underlineBtn.className = 'document-toolbar-btn';
-    underlineBtn.innerHTML = '<i class="fas fa-underline"></i>';
-    underlineBtn.title = 'Underline';
-    
-    const strikeBtn = document.createElement('button');
-    strikeBtn.className = 'document-toolbar-btn';
-    strikeBtn.innerHTML = '<i class="fas fa-strikethrough"></i>';
-    strikeBtn.title = 'Strikethrough';
-    
-    const codeBtn = document.createElement('button');
-    codeBtn.className = 'document-toolbar-btn';
-    codeBtn.innerHTML = '<i class="fas fa-code"></i>';
-    codeBtn.title = 'Code';
-    
-    styleGroup.appendChild(boldBtn);
-    styleGroup.appendChild(italicBtn);
-    styleGroup.appendChild(underlineBtn);
-    styleGroup.appendChild(strikeBtn);
-    styleGroup.appendChild(codeBtn);
-    
-    // Divider
-    const divider1 = document.createElement('div');
-    divider1.className = 'toolbar-divider';
-    
-    // Alignment group
-    const alignGroup = document.createElement('div');
-    alignGroup.className = 'toolbar-group';
-    
-    const alignLeftBtn = document.createElement('button');
-    alignLeftBtn.className = 'document-toolbar-btn';
-    alignLeftBtn.innerHTML = '<i class="fas fa-align-left"></i>';
-    alignLeftBtn.title = 'Align left';
-    
-    const alignCenterBtn = document.createElement('button');
-    alignCenterBtn.className = 'document-toolbar-btn';
-    alignCenterBtn.innerHTML = '<i class="fas fa-align-center"></i>';
-    alignCenterBtn.title = 'Align center';
-    
-    const alignRightBtn = document.createElement('button');
-    alignRightBtn.className = 'document-toolbar-btn';
-    alignRightBtn.innerHTML = '<i class="fas fa-align-right"></i>';
-    alignRightBtn.title = 'Align right';
-    
-    alignGroup.appendChild(alignLeftBtn);
-    alignGroup.appendChild(alignCenterBtn);
-    alignGroup.appendChild(alignRightBtn);
-    
-    // Divider
-    const divider2 = document.createElement('div');
-    divider2.className = 'toolbar-divider';
-    
-    // Insert options group
-    const insertGroup = document.createElement('div');
-    insertGroup.className = 'toolbar-group';
-    
-    const linkBtn = document.createElement('button');
-    linkBtn.className = 'document-toolbar-btn';
-    linkBtn.innerHTML = '<i class="fas fa-link"></i>';
-    linkBtn.title = 'Add link';
-    
-    const imageBtn = document.createElement('button');
-    imageBtn.className = 'document-toolbar-btn';
-    imageBtn.innerHTML = '<i class="fas fa-image"></i>';
-    imageBtn.title = 'Add image';
-    
-    const tableBtn = document.createElement('button');
-    tableBtn.className = 'document-toolbar-btn';
-    tableBtn.innerHTML = '<i class="fas fa-table"></i>';
-    tableBtn.title = 'Add table';
-    
-    insertGroup.appendChild(linkBtn);
-    insertGroup.appendChild(imageBtn);
-    insertGroup.appendChild(tableBtn);
-    
-    // Add all groups to toolbar
-    formatToolbar.appendChild(textFormatGroup);
-    formatToolbar.appendChild(styleGroup);
-    formatToolbar.appendChild(divider1);
-    formatToolbar.appendChild(alignGroup);
-    formatToolbar.appendChild(divider2);
-    formatToolbar.appendChild(insertGroup);
-    
-    // Create main content area
-    const mainArea = document.createElement('div');
-    mainArea.className = 'document-main-area';
-    
-    // Create ruler
-    const ruler = document.createElement('div');
-    ruler.className = 'document-ruler';
-    
-    // Add ruler markers
-    for (let i = 0; i <= 100; i += 1) {
-        if (i % 10 === 0) {
-            const marker = document.createElement('div');
-            marker.className = 'ruler-marker major';
-            marker.style.left = `calc(96px + ${i/10}in)`;
-            
-            const number = document.createElement('div');
-            number.className = 'ruler-number';
-            number.textContent = i/10;
-            number.style.left = `calc(96px + ${i/10}in)`;
-            
-            ruler.appendChild(marker);
-            ruler.appendChild(number);
-        } else {
-            const marker = document.createElement('div');
-            marker.className = 'ruler-marker';
-            marker.style.left = `calc(96px + ${i/10}in)`;
-            ruler.appendChild(marker);
-        }
-    }
-    
-    // Create content area
-    const content = document.createElement('div');
-    content.className = 'document-content';
-    
-    // Create document container
-    const documentContainer = document.createElement('div');
-    documentContainer.className = 'document-container';
-    
-    // Clone note content to document
-    const noteContent = note.querySelector('.note-content');
-    const noteId = note.getAttribute('data-note-id');
-    
-    if (noteContent) {
-        const blocks = Array.from(noteContent.querySelectorAll('.note-block'));
-        
-        blocks.forEach((block, index) => {
-            const newBlock = block.cloneNode(true);
-            
-            // Set placeholder text for empty blocks - Notion style
-            const blockContent = newBlock.querySelector('.block-content');
-            if (blockContent && blockContent.textContent.trim() === '') {
-                if (index === 0) {
-                    blockContent.setAttribute('data-placeholder', 'Type \'/\' for commands');
-                } else {
-                    blockContent.setAttribute('data-placeholder', 'Press \'Tab\' to nest, \'/\' for commands...');
-                }
-            }
-            
-            // Fix content editable
-            if (blockContent) {
-                blockContent.setAttribute('contenteditable', 'true');
-                blockContent.addEventListener('input', handleNoteContentEdit);
-                blockContent.addEventListener('keydown', handleBlockKeyDown);
-                blockContent.addEventListener('focus', () => {
-                    newBlock.classList.add('focused');
-                });
-                blockContent.addEventListener('blur', () => {
-                    newBlock.classList.remove('focused');
-                });
-                
-                // Add special Notion-like slash commands
-                blockContent.addEventListener('keydown', (e) => {
-                    if (e.key === '/') {
-                        showAddBlockMenu(blockContent);
-                    }
-                });
-            }
-            
-            documentContainer.appendChild(newBlock);
-            
-            // Setup block event handlers
-            setupBlockEventHandlers(newBlock);
-        });
-    }
-    
-    // If no blocks, create an empty paragraph block
-    if (!noteContent || noteContent.querySelectorAll('.note-block').length === 0) {
-        const emptyBlock = document.createElement('div');
-        emptyBlock.className = 'note-block block-paragraph';
-        emptyBlock.setAttribute('data-block-type', 'paragraph');
-        emptyBlock.setAttribute('data-block-index', '0');
-        
-        const blockContent = document.createElement('div');
-        blockContent.className = 'block-content';
-        blockContent.setAttribute('contenteditable', 'true');
-        blockContent.setAttribute('data-placeholder', 'Type \'/\' for commands');
-        blockContent.addEventListener('input', handleNoteContentEdit);
-        blockContent.addEventListener('keydown', handleBlockKeyDown);
-        blockContent.addEventListener('focus', () => {
-            emptyBlock.classList.add('focused');
-        });
-        blockContent.addEventListener('blur', () => {
-            emptyBlock.classList.remove('focused');
-        });
-        
-        // Add special Notion-like slash commands
-        blockContent.addEventListener('keydown', (e) => {
-            if (e.key === '/') {
-                showAddBlockMenu(blockContent);
-            }
-        });
-        
-        emptyBlock.appendChild(blockContent);
-        documentContainer.appendChild(emptyBlock);
-        
-        // Setup block event handlers
-        setupBlockEventHandlers(emptyBlock);
-    }
-    
-    content.appendChild(documentContainer);
-    
-    // Create document sidebar
-    const sidebar = document.createElement('div');
-    sidebar.className = 'document-sidebar';
-    
-    const sidebarHeader = document.createElement('div');
-    sidebarHeader.className = 'document-sidebar-header';
-    
-    const sidebarTitle = document.createElement('div');
-    sidebarTitle.className = 'document-sidebar-title';
-    sidebarTitle.textContent = 'Document Outline';
-    
-    const sidebarCloseBtn = document.createElement('button');
-    sidebarCloseBtn.className = 'sidebar-toggle-btn';
-    sidebarCloseBtn.innerHTML = '<i class="fas fa-times"></i>';
-    sidebarCloseBtn.addEventListener('click', () => {
-        sidebar.classList.add('hidden');
-    });
-    
-    sidebarHeader.appendChild(sidebarTitle);
-    sidebarHeader.appendChild(sidebarCloseBtn);
-    
-    const outline = document.createElement('div');
-    outline.className = 'document-outline';
-    
-    // Create outline items from headings
-    const headings = documentContainer.querySelectorAll('.block-heading, .block-subheading');
-    
-    if (headings.length > 0) {
-        headings.forEach((heading, index) => {
-            const outlineItem = document.createElement('div');
-            outlineItem.className = 'outline-item';
-            outlineItem.setAttribute('data-index', index);
-            
-            const itemIcon = document.createElement('i');
-            itemIcon.className = heading.classList.contains('block-heading') ? 
-                'fas fa-heading' : 'fas fa-heading fa-xs';
-            
-            outlineItem.appendChild(itemIcon);
-            outlineItem.appendChild(document.createTextNode(' ' + heading.textContent));
-            
-            outlineItem.addEventListener('click', () => {
-                heading.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            });
-            
-            outline.appendChild(outlineItem);
-        });
-    } else {
-        const emptyOutline = document.createElement('div');
-        emptyOutline.className = 'outline-empty';
-        emptyOutline.textContent = 'No headings in document';
-        emptyOutline.style.padding = '8px 16px';
-        emptyOutline.style.color = '#777';
-        emptyOutline.style.fontStyle = 'italic';
-        outline.appendChild(emptyOutline);
-    }
-    
-    sidebar.appendChild(sidebarHeader);
-    sidebar.appendChild(outline);
-    
-    // Add floating + button for quick insert (Notion style)
-    const floatingBtn = document.createElement('div');
-    floatingBtn.className = 'document-floating-button';
-    floatingBtn.innerHTML = '<i class="fas fa-plus"></i>';
-    floatingBtn.title = 'Insert';
-    floatingBtn.addEventListener('click', (e) => {
-        showDocumentInsertMenu(floatingBtn);
-    });
-    
-    // Status bar with word count
-    const statusBar = document.createElement('div');
-    statusBar.className = 'document-status-bar';
-    
-    const statusInfo = document.createElement('div');
-    statusInfo.className = 'document-status-info';
-    updateDocumentWordCount(documentContainer);
-    
-    statusBar.appendChild(statusInfo);
-    
-    // Assemble document structure
-    mainArea.appendChild(content);
-    mainArea.appendChild(sidebar);
-    
-    overlay.appendChild(topToolbar);
-    overlay.appendChild(formatToolbar);
-    overlay.appendChild(ruler);
-    overlay.appendChild(mainArea);
-    overlay.appendChild(floatingBtn);
-    overlay.appendChild(statusBar);
-    
-    // Add class to body for global style changes
-    document.body.classList.add('document-mode');
-    
-    // Set 100ms timeout for the fade-in animation to start
-    setTimeout(() => {
-        overlay.style.opacity = '1';
-        
-        // Focus on the first block
-        const firstBlock = documentContainer.querySelector('.block-content');
-        if (firstBlock) {
-            firstBlock.focus();
-            
-            // Place cursor at the end
-            const range = document.createRange();
-            const sel = window.getSelection();
-            range.selectNodeContents(firstBlock);
-            range.collapse(false);
-            sel.removeAllRanges();
-            sel.addRange(range);
-        }
-    }, 10);
-    
-    // Store noteId for later use
-    overlay.setAttribute('data-note-id', noteId);
-    
-    // Add event listener for outside click to close insert menu
-    document.addEventListener('click', (e) => {
-        const insertMenu = document.querySelector('.document-insert-menu');
-        if (insertMenu && !insertMenu.contains(e.target) && !floatingBtn.contains(e.target)) {
-            insertMenu.remove();
-        }
-    });
-}
-
-// Set the active note
-function setActiveNote(noteId) {
-  // Remove selected class from all notes
-  document.querySelectorAll('.workspace-note').forEach(note => {
-    note.classList.remove('selected');
+  notes.forEach(note => {
+    const posX = Math.round((viewportWidth / 2 - canvasOffsetX) / canvasScale);
+    const posY = Math.round((viewportHeight / 2 - canvasOffsetY) / canvasScale);
+    
+    // Questa sarà la nuova posizione predefinita per le prossime note
+    lastNotePosition = { x: posX + 50, y: posY + 50 };
   });
   
-  // Add selected class to active note
-  const note = document.getElementById(noteId);
-  if (note) {
-    note.classList.add('selected');
-    activeNoteId = noteId;
-  }
-}
-
-// Toggle sidebar visibility
-function toggleWorkflowSidebar() {
-  const sidebar = document.querySelector('.workflow-sidebar');
-  const toggleBtn = document.querySelector('.toggle-workflow-sidebar-btn');
-  
-  if (sidebar) {
-    sidebar.classList.toggle('collapsed');
-    
-    if (sidebar.classList.contains('collapsed')) {
-      toggleBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
-  } else {
-      toggleBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
-    }
-  }
-}
-
-// Set up a Notion-style sidebar
-function setupNotionStyleSidebar(sidebar) {
-  // Create sidebar header
-  const header = document.createElement('div');
-  header.className = 'sidebar-header';
-  
-  const headerTitle = document.createElement('h3');
-  headerTitle.className = 'sidebar-title';
-  headerTitle.textContent = 'Synapse Workflow';
-  
-  header.appendChild(headerTitle);
-  sidebar.appendChild(header);
-  
-  // Create sections container
-  const sections = document.createElement('div');
-  sections.className = 'sidebar-sections';
-  
-  // Pages section
-  const pagesSection = createSidebarSection('Pagine', [
-    { icon: 'fa-home', text: 'Dashboard' },
-    { icon: 'fa-tasks', text: 'Attività' },
-    { icon: 'fa-calendar', text: 'Calendario' }
-  ]);
-  
-  // Personal section
-  const personalSection = createSidebarSection('Personale', [
-    { icon: 'fa-star', text: 'Preferiti' },
-    { icon: 'fa-book', text: 'Note personali' },
-    { icon: 'fa-briefcase', text: 'Lavoro' }
-  ]);
-  
-  // Workspaces section
-  const workspacesSection = createSidebarSection('Spazi di lavoro', [
-    { icon: 'fa-users', text: 'Team Alpha' },
-    { icon: 'fa-project-diagram', text: 'Progetti' },
-    { icon: 'fa-lightbulb', text: 'Idee' }
-  ]);
-  
-  // Add sections to the sidebar
-  sections.appendChild(pagesSection);
-  sections.appendChild(personalSection);
-  sections.appendChild(workspacesSection);
-  sidebar.appendChild(sections);
-}
-
-// Create a sidebar section with items
-function createSidebarSection(title, items) {
-  const section = document.createElement('div');
-  section.className = 'sidebar-section';
-  
-  const sectionTitle = document.createElement('div');
-  sectionTitle.className = 'sidebar-section-title';
-  sectionTitle.textContent = title;
-  section.appendChild(sectionTitle);
-  
-  items.forEach(item => {
-    const sectionItem = document.createElement('div');
-    sectionItem.className = 'sidebar-section-item';
-    sectionItem.innerHTML = `<i class="fas ${item.icon}"></i> ${item.text}`;
-    sectionItem.addEventListener('click', () => {
-      // For demonstration only - could open different views
-      console.log(`Clicked on ${item.text}`);
-    });
-    section.appendChild(sectionItem);
-  });
-  
-  return section;
-}
-
-// Inizializza i pulsanti "+" tra i blocchi
-function initializeAddBetweenButtons(note) {
-  if (!note) return;
-  
-  // Assicuriamoci di avere i pulsanti "+" tra ogni blocco
-  updateAddBetweenButtons(note);
-  
-  // Aggiorna i pulsanti quando vengono aggiunti/rimossi blocchi
-  const observer = new MutationObserver(() => {
-    updateAddBetweenButtons(note);
-  });
-  
-  // Osserva cambiamenti nel contenuto della nota
-  const noteContent = note.querySelector('.note-content');
-  if (noteContent) {
-    observer.observe(noteContent, { childList: true });
-  }
-}
-
-// Aggiorna i pulsanti "+" tra i blocchi
-function updateAddBetweenButtons(note) {
-  const noteContent = note.querySelector('.note-content');
-  if (!noteContent) return;
-  
-  // Rimuovi tutti i pulsanti esistenti
-  noteContent.querySelectorAll('.block-add-between').forEach(btn => btn.remove());
-  
-  // Aggiungi nuovi pulsanti tra i blocchi
-  const blocks = noteContent.querySelectorAll('.note-block');
-  blocks.forEach((block, index) => {
-    if (index < blocks.length - 1) {
-      const nextBlock = blocks[index + 1];
-      const addButton = document.createElement('div');
-      addButton.className = 'block-add-between';
-      addButton.innerHTML = '<i class="fas fa-plus"></i>';
-      addButton.style.top = (block.offsetTop + block.offsetHeight) + 'px';
-      
-      // Evento click per aggiungere un nuovo blocco
-      addButton.addEventListener('click', () => {
-        const noteId = note.id;
-        addBlockAfter(noteId, index, 'paragraph');
-        
-        // Focus sul nuovo blocco
-        setTimeout(() => {
-          const updatedBlocks = noteContent.querySelectorAll('.note-block');
-          if (updatedBlocks[index + 1]) {
-            const newBlockContent = updatedBlocks[index + 1].querySelector('.block-content');
-            if (newBlockContent) {
-              newBlockContent.focus();
-              blockFocused = newBlockContent;
-            }
-          }
-        }, 10);
-      });
-      
-      noteContent.appendChild(addButton);
-    }
-  });
-}
-
-// Gestisci l'inizio del drag di un blocco
-function handleBlockDragStart(e) {
-  console.log('[DRAG] Inizio handleBlockDragStart');
-  
-  try {
-    // Verifica se stiamo cliccando su un handler di drag
-    const dragHandle = e.target.closest('.block-drag-handle');
-    if (!dragHandle) {
-      console.log('[DRAG] Non è un drag handle, esco');
-      return;
-    }
-    
-    console.log('[DRAG] Drag handle trovato');
-    
-    // Verifica che il blocco esista
-    const block = dragHandle.closest('.note-block');
-    if (!block) {
-      console.log('[DRAG] Blocco non trovato, esco');
-      return;
-    }
-    
-    console.log('[DRAG] Blocco trovato:', block.className);
-    
-    // Verifica che il blocco sia in una nota valida
-    const note = block.closest('.workspace-note');
-    const noteContent = note ? note.querySelector('.note-content') : null;
-    if (!note || !noteContent) {
-      console.log('[DRAG] Nota o contenuto nota non trovati, esco');
-      return;
-    }
-    
-    console.log('[DRAG] Nota trovata:', note.id);
-    
-    // Se c'è già un blocco in trascinamento, puliamo prima di iniziare
-    if (draggingBlock) {
-      console.log('[DRAG] C\'è già un blocco in trascinamento, pulisco');
-      cleanupDragState();
-    }
-    
-    console.log('[DRAG] Imposto il blocco come trascinabile');
-    
-    // Previeni il comportamento di default
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Salva la posizione iniziale del mouse
-    mouseOffsetY = e.clientY;
-    mouseOffsetX = e.clientX;
-    
-    // Salva le dimensioni e posizione originali del blocco
-    const blockRect = block.getBoundingClientRect();
-    
-    console.log('[DRAG] Posizione blocco:', blockRect.top, blockRect.left);
-    
-    // Memorizza il blocco corrente come blocco trascinato
-    draggingBlock = block;
-    
-    // Aggiorna lo stile del body
-    document.body.classList.add('dragging-block');
-    
-    // Crea un placeholder semplice
-    blockDragPlaceholder = document.createElement('div');
-    blockDragPlaceholder.className = 'block-drag-placeholder';
-    blockDragPlaceholder.style.height = blockRect.height + 'px';
-    
-    // Inserisci il placeholder dopo il blocco
-    block.after(blockDragPlaceholder);
-    
-    console.log('[DRAG] Placeholder creato e inserito');
-    
-    // Mantieni il blocco originale dov'è ma cambia lo stile
-    block.classList.add('dragging');
-    
-    console.log('[DRAG] Aggiungo listener per mousemove e mouseup');
-    
-    // Aggiungi i listener per gli eventi mouse
-    document.addEventListener('mousemove', handleSimpleDragMove);
-    document.addEventListener('mouseup', handleSimpleDragEnd);
-    document.addEventListener('mouseleave', handleSimpleDragEnd);
-    
-    console.log('[DRAG] Inizio drag completato');
-    
-  } catch (error) {
-    console.error('[DRAG ERROR] Errore durante l\'inizio del drag:', error);
-    cleanupDragState();
-  }
-}
-
-// Versione semplificata del movimento durante il drag
-function handleSimpleDragMove(e) {
-  console.log('[DRAG MOVE] Movimento rilevato');
-  
-  try {
-    // Verifica che il drag sia attivo
-    if (!draggingBlock || !blockDragPlaceholder) {
-      console.log('[DRAG MOVE] Nessun blocco in trascinamento, esco');
-      return;
-    }
-    
-    // Verifica che il pulsante del mouse sia ancora premuto
-    if (e.buttons === 0) {
-      console.log('[DRAG MOVE] Mouse button rilasciato, termino il drag');
-      handleSimpleDragEnd(e);
-      return;
-    }
-    
-    console.log('[DRAG MOVE] Calcolo spostamento');
-    
-    // Calcola lo spostamento
-    const deltaY = e.clientY - mouseOffsetY;
-    
-    // Simuliamo lo scrolling quando il mouse è vicino ai bordi
-    const viewportHeight = window.innerHeight;
-    const scrollSpeed = 10;
-    
-    if (e.clientY < 100) {
-      // Scroll verso l'alto
-      window.scrollBy(0, -scrollSpeed);
-    } else if (e.clientY > viewportHeight - 100) {
-      // Scroll verso il basso
-      window.scrollBy(0, scrollSpeed);
-    }
-    
-    // Trova la nota sotto il cursore
-    const elementsAtPoint = document.elementsFromPoint(e.clientX, e.clientY);
-    const noteUnderCursor = elementsAtPoint.find(el => el.classList && el.classList.contains('workspace-note'));
-    
-    if (!noteUnderCursor) {
-      console.log('[DRAG MOVE] Nessuna nota sotto il cursore');
-      return;
-    }
-    
-    console.log('[DRAG MOVE] Nota trovata sotto il cursore:', noteUnderCursor.id);
-    
-    // Trova il contenuto della nota
-    const targetNoteContent = noteUnderCursor.querySelector('.note-content');
-    if (!targetNoteContent) {
-      console.log('[DRAG MOVE] Contenuto nota non trovato');
-      return;
-    }
-    
-    // Rimuovi il placeholder corrente
-    if (blockDragPlaceholder.parentNode) {
-      blockDragPlaceholder.parentNode.removeChild(blockDragPlaceholder);
-    }
-    
-    // Trova tutti i blocchi nella nota target
-    const blocks = Array.from(targetNoteContent.querySelectorAll('.note-block'));
-    
-    // Se non ci sono blocchi, aggiungi il placeholder alla fine della nota
-    if (blocks.length === 0) {
-      console.log('[DRAG MOVE] Nessun blocco nella nota, aggiungo il placeholder alla fine');
-      targetNoteContent.appendChild(blockDragPlaceholder);
-      return;
-    }
-    
-    // Trova il blocco più vicino al cursore
-    let closestBlock = null;
-    let closestDistance = Infinity;
-    let insertBefore = true;
-    
-    for (const currentBlock of blocks) {
-      // Ignora il blocco che stiamo trascinando
-      if (currentBlock === draggingBlock) continue;
-      
-      const rect = currentBlock.getBoundingClientRect();
-      const blockMiddle = rect.top + rect.height / 2;
-      const distance = Math.abs(e.clientY - blockMiddle);
-      
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        closestBlock = currentBlock;
-        insertBefore = e.clientY < blockMiddle;
-      }
-    }
-    
-    // Inserisci il placeholder nella posizione appropriata
-    if (closestBlock) {
-      console.log('[DRAG MOVE] Inserisco placeholder', insertBefore ? 'prima' : 'dopo', 'il blocco più vicino');
-      if (insertBefore) {
-        targetNoteContent.insertBefore(blockDragPlaceholder, closestBlock);
-      } else {
-        const nextSibling = closestBlock.nextElementSibling;
-        if (nextSibling) {
-          targetNoteContent.insertBefore(blockDragPlaceholder, nextSibling);
-        } else {
-          targetNoteContent.appendChild(blockDragPlaceholder);
-        }
-      }
-    } else {
-      console.log('[DRAG MOVE] Nessun blocco trovato, aggiungo il placeholder alla fine');
-      targetNoteContent.appendChild(blockDragPlaceholder);
-    }
-    
-  } catch (error) {
-    console.error('[DRAG MOVE ERROR] Errore durante il movimento:', error);
-  }
-}
-
-// Versione semplificata del rilascio del blocco
-function handleSimpleDragEnd(e) {
-  console.log('[DRAG END] Fine del drag');
-  
-  try {
-    // Rimuovi i listener degli eventi
-    document.removeEventListener('mousemove', handleSimpleDragMove);
-    document.removeEventListener('mouseup', handleSimpleDragEnd);
-    document.removeEventListener('mouseleave', handleSimpleDragEnd);
-    
-    console.log('[DRAG END] Listener rimossi');
-    
-    // Se non c'è un blocco in trascinamento o un placeholder, pulisci e esci
-    if (!draggingBlock || !blockDragPlaceholder) {
-      console.log('[DRAG END] Nessun blocco o placeholder, pulisco e esco');
-      cleanupDragState();
-      return;
-    }
-    
-    console.log('[DRAG END] Posiziono il blocco nella nuova posizione');
-    
-    // Se il placeholder è stato inserito nel DOM, sposta il blocco lì
-    if (blockDragPlaceholder.parentNode) {
-      blockDragPlaceholder.parentNode.insertBefore(draggingBlock, blockDragPlaceholder);
-      
-      // Rimuovi il placeholder
-      blockDragPlaceholder.parentNode.removeChild(blockDragPlaceholder);
-      
-      console.log('[DRAG END] Blocco posizionato, placeholder rimosso');
-      
-      // Ripristina lo stile del blocco
-      draggingBlock.classList.remove('dragging');
-      
-      // Aggiorna i pulsanti tra i blocchi
-      const note = draggingBlock.closest('.workspace-note');
-      if (note) {
-        console.log('[DRAG END] Aggiorno i pulsanti tra i blocchi');
-        updateAddBetweenButtons(note);
-      }
-    }
-    
-    console.log('[DRAG END] Pulisco lo stato del drag');
-    
-    // Reset delle variabili
-    document.body.classList.remove('dragging-block');
-    draggingBlock = null;
-    blockDragPlaceholder = null;
-    mouseOffsetY = 0;
-    mouseOffsetX = 0;
-    
-    console.log('[DRAG END] Drag terminato con successo');
-    
-  } catch (error) {
-    console.error('[DRAG END ERROR] Errore durante la fine del drag:', error);
-    cleanupDragState();
-  }
-}
-
-// Funzione per pulire lo stato del drag con log
-function cleanupDragState() {
-  console.log('[CLEANUP] Inizio pulizia stato drag');
-  
-  try {
-    // Rimuovi i listener se ci sono
-    document.removeEventListener('mousemove', handleSimpleDragMove);
-    document.removeEventListener('mouseup', handleSimpleDragEnd);
-    document.removeEventListener('mouseleave', handleSimpleDragEnd);
-    
-    console.log('[CLEANUP] Listener rimossi');
-    
-    // Ripristina lo stile del body
-    document.body.classList.remove('dragging-block');
-    
-    // Ripristina il blocco trascinato se esiste
-    if (draggingBlock) {
-      console.log('[CLEANUP] Ripristino stile blocco');
-      draggingBlock.classList.remove('dragging');
-    }
-    
-    // Rimuovi il placeholder se esiste
-    if (blockDragPlaceholder && blockDragPlaceholder.parentNode) {
-      console.log('[CLEANUP] Rimuovo placeholder');
-      blockDragPlaceholder.parentNode.removeChild(blockDragPlaceholder);
-    }
-    
-    // Reset delle variabili
-    draggingBlock = null;
-    blockDragPlaceholder = null;
-    mouseOffsetY = 0;
-    mouseOffsetX = 0;
-    blockAnimationFrame = null;
-    
-    console.log('[CLEANUP] Pulizia completata');
-    
-  } catch (error) {
-    console.error('[CLEANUP ERROR] Errore durante la pulizia:', error);
-    
-    // Reset estremo delle variabili in caso di errore
-    draggingBlock = null;
-    blockDragPlaceholder = null;
-    mouseOffsetY = 0;
-    mouseOffsetX = 0;
-    blockAnimationFrame = null;
-    document.body.classList.remove('dragging-block');
-  }
-}
-
-// Export functions for use in renderer.js
-window.workflowFunctions = {
-  initialize: initializeWorkflow,
-  createNote: createNewNote,
-  toggleSidebar: toggleWorkflowSidebar,
-  cleanup: cleanupWorkflow
-};
-
-// Funzione per gestire la creazione di connessioni tra nodi AI
-function handlePortMouseDown(e) {
-  e.preventDefault();
-  e.stopPropagation();
-  
-  // Ottieni la porta di connessione
-  const port = e.currentTarget;
-  const node = port.closest('.workspace-ai-node');
-  
-  // Memorizza il nodo e la porta di origine
-  connectorSourceNode = node;
-  connectorSourcePort = port;
-  
-  // Crea un nuovo connettore temporaneo
-  const workspaceArea = document.getElementById('workflowWorkspace');
-  
-  currentConnector = document.createElement('div');
-  currentConnector.className = 'node-connector';
-  workspaceArea.appendChild(currentConnector);
-  
-  // Calcola la posizione della porta di origine
-  const portRect = port.getBoundingClientRect();
-  const workspaceRect = workspaceArea.getBoundingClientRect();
-  
-  const workspaceX = (portRect.left + portRect.width / 2 - workspaceRect.left) / canvasScale + canvasOffsetX;
-  const workspaceY = (portRect.top + portRect.height / 2 - workspaceRect.top) / canvasScale + canvasOffsetY;
-  
-  // Posizione iniziale del connettore
-  currentConnector.style.left = `${workspaceX}px`;
-  currentConnector.style.top = `${workspaceY}px`;
-  currentConnector.style.width = '0';
-  
-  // Funzioni per gestire il trascinamento e il rilascio
-  function handleConnectorDragMove(moveEvent) {
-    // Calcola la posizione del cursore nel sistema di coordinate del workspace
-    const cursorWorkspaceX = (moveEvent.clientX - workspaceRect.left) / canvasScale + canvasOffsetX;
-    const cursorWorkspaceY = (moveEvent.clientY - workspaceRect.top) / canvasScale + canvasOffsetY;
-    
-    // Calcola la distanza e l'angolo
-    const deltaX = cursorWorkspaceX - workspaceX;
-    const deltaY = cursorWorkspaceY - workspaceY;
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-    const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-    
-    // Aggiorna il connettore
-    currentConnector.style.width = `${distance}px`;
-    currentConnector.style.transform = `rotate(${angle}deg)`;
-  }
-  
-  function handleConnectorDragEnd(endEvent) {
-    // Rimuovi il connettore temporaneo
-    currentConnector.remove();
-    currentConnector = null;
-    
-    // Rimuovi gli event listener
-    document.removeEventListener('mousemove', handleConnectorDragMove);
-    document.removeEventListener('mouseup', handleConnectorDragEnd);
-    
-    // Verifica se è stata rilasciata su una porta compatibile
-    const targetPort = document.elementFromPoint(endEvent.clientX, endEvent.clientY);
-    if (targetPort && targetPort.classList.contains('node-connector-port')) {
-      const targetNode = targetPort.closest('.workspace-ai-node');
-      
-      // Verifica che non sia la stessa porta e che i tipi siano compatibili
-      if (
-        targetNode && 
-        targetNode !== connectorSourceNode &&
-        ((connectorSourcePort.dataset.portType === 'output' && targetPort.dataset.portType === 'input') ||
-         (connectorSourcePort.dataset.portType === 'input' && targetPort.dataset.portType === 'output'))
-      ) {
-        // Crea una connessione permanente
-        createConnection(connectorSourceNode, connectorSourcePort, targetNode, targetPort);
-      }
-    }
-    
-    // Resetta le variabili
-    connectorSourceNode = null;
-    connectorSourcePort = null;
-  }
-  
-  document.addEventListener('mousemove', handleConnectorDragMove);
-  document.addEventListener('mouseup', handleConnectorDragEnd);
-}
-
-// Gestisce l'inizio del trascinamento di un tool AI
-function handleAIToolDragStart(e) {
-  e.preventDefault();
-  
-  // Ottieni il tool AI cliccato
-  const aiTool = e.currentTarget;
-  
-  // Crea una copia visiva del tool per il trascinamento
-  const dragPreview = aiTool.cloneNode(true);
-  dragPreview.style.position = 'fixed';
-  dragPreview.style.zIndex = '1000';
-  dragPreview.style.pointerEvents = 'none';
-  dragPreview.style.opacity = '0.8';
-  dragPreview.style.width = `${aiTool.offsetWidth}px`;
-  document.body.appendChild(dragPreview);
-  
-  // Posiziona il drag preview sotto il cursore
-  dragPreview.style.left = `${e.clientX - 20}px`;
-  dragPreview.style.top = `${e.clientY - 10}px`;
-  
-  // Salva il riferimento al drag preview e al tool originale
-  const toolId = aiTool.dataset.toolId;
-  
-  // Aggiungi gli event listener per il trascinamento e il rilascio
-  function handleAIToolDragMove(moveEvent) {
-    dragPreview.style.left = `${moveEvent.clientX - 20}px`;
-    dragPreview.style.top = `${moveEvent.clientY - 10}px`;
-  }
-  
-  function handleAIToolDragEnd(endEvent) {
-    // Rimuovi il drag preview
-    dragPreview.remove();
-    
-    // Rimuovi gli event listener
-    document.removeEventListener('mousemove', handleAIToolDragMove);
-    document.removeEventListener('mouseup', handleAIToolDragEnd);
-    
-    // Verifica se il tool è stato rilasciato nel workspace
-    const workspaceArea = document.getElementById('workflowWorkspace');
-    const workspaceRect = workspaceArea.getBoundingClientRect();
-    
-    if (
-      endEvent.clientX >= workspaceRect.left &&
-      endEvent.clientX <= workspaceRect.right &&
-      endEvent.clientY >= workspaceRect.top &&
-      endEvent.clientY <= workspaceRect.bottom
-    ) {
-      // Calcola la posizione nel canvas tenendo conto dello zoom e pan
-      const canvasX = (endEvent.clientX - workspaceRect.left - canvasOffsetX) / canvasScale;
-      const canvasY = (endEvent.clientY - workspaceRect.top - canvasOffsetY) / canvasScale;
-      
-      // Crea un nuovo nodo AI nel workspace
-      createAINode(toolId, canvasX, canvasY);
-    }
-  }
-  
-  document.addEventListener('mousemove', handleAIToolDragMove);
-  document.addEventListener('mouseup', handleAIToolDragEnd);
-}
-
-// Crea un nuovo nodo AI nel workspace
-function createAINode(toolId, x, y) {
-  const workspaceArea = document.getElementById('workflowWorkspace');
-  
-  // Info del tool in base all'ID
-  const toolInfo = {
-    'ai-text-generator': { name: 'Text Generator', icon: '<i class="fas fa-pen"></i>', color: '#5c5cff' },
-    'ai-image-generator': { name: 'Image Gen', icon: '<i class="fas fa-image"></i>', color: '#5c5cff' },
-    'ai-search': { name: 'Web Search', icon: '<i class="fas fa-search"></i>', color: '#5c5cff' },
-    'ai-decision': { name: 'Decision', icon: '<i class="fas fa-code-branch"></i>', color: '#5c5cff' },
-    'ai-summarize': { name: 'Summarize', icon: '<i class="fas fa-list"></i>', color: '#5c5cff' }
-  };
-  
-  const info = toolInfo[toolId] || { name: 'AI Node', icon: '<i class="fas fa-robot"></i>', color: '#5c5cff' };
-  
-  // Crea il nodo AI
-  const aiNode = document.createElement('div');
-  aiNode.className = 'workspace-ai-node';
-  aiNode.id = `ai-node-${Date.now()}`;
-  aiNode.dataset.nodeType = toolId;
-  aiNode.style.transform = `translate(${x}px, ${y}px)`;
-  
-  // Crea l'header del nodo
-  const nodeHeader = document.createElement('div');
-  nodeHeader.className = 'ai-node-header';
-  nodeHeader.style.backgroundColor = info.color;
-  nodeHeader.innerHTML = `
-    <span>${info.icon} ${info.name}</span>
-    <div class="node-actions">
-      <button class="node-action"><i class="fas fa-cog"></i></button>
-    </div>
-  `;
-  
-  // Crea il contenuto del nodo
-  const nodeContent = document.createElement('div');
-  nodeContent.className = 'ai-node-content';
-  nodeContent.innerHTML = `<div class="ai-component-content">AI ${info.name} component</div>`;
-  
-  // Crea le porte di connessione
-  const inputPort = document.createElement('div');
-  inputPort.className = 'node-connector-port input';
-  inputPort.dataset.portType = 'input';
-  
-  const outputPort = document.createElement('div');
-  outputPort.className = 'node-connector-port output';
-  outputPort.dataset.portType = 'output';
-  
-  // Aggiungi gli elementi al nodo
-  aiNode.appendChild(nodeHeader);
-  aiNode.appendChild(nodeContent);
-  aiNode.appendChild(inputPort);
-  aiNode.appendChild(outputPort);
-  
-  // Aggiungi il nodo al workspace
-  workspaceArea.appendChild(aiNode);
-  
-  // Aggiungi eventi per il trascinamento del nodo
-  nodeHeader.addEventListener('mousedown', handleNodeDragStart);
-  
-  // Aggiungi eventi per le connessioni
-  inputPort.addEventListener('mousedown', handlePortMouseDown);
-  outputPort.addEventListener('mousedown', handlePortMouseDown);
-  
-  // Aggiorna la minimappa
-  updateMinimap();
-  
-  return aiNode;
-}
-
-// Gestisce l'inizio del trascinamento di un nodo AI
-function handleNodeDragStart(e) {
-  e.preventDefault();
-  e.stopPropagation();
-  
-  // Ottieni il nodo AI
-  const aiNode = e.currentTarget.closest('.workspace-ai-node');
-  if (!aiNode) return;
-  
-  // Aggiungi la classe dragging
-  aiNode.classList.add('dragging');
-  
-  // Memorizza la posizione iniziale del mouse
-  const initialMouseX = e.clientX;
-  const initialMouseY = e.clientY;
-  
-  // Memorizza la posizione iniziale del nodo
-  const style = window.getComputedStyle(aiNode);
-  const transform = style.transform || style.webkitTransform;
-  let initialX = 0, initialY = 0;
-  
-  if (transform && transform !== 'none') {
-    const matrix = new DOMMatrix(transform);
-    initialX = matrix.m41;
-    initialY = matrix.m42;
-  }
-  
-  // Funzione per gestire il movimento del mouse durante il trascinamento
-  function handleNodeDragMove(moveEvent) {
-    // Calcola lo spostamento del mouse, considerando lo zoom
-    const deltaX = (moveEvent.clientX - initialMouseX) / canvasScale;
-    const deltaY = (moveEvent.clientY - initialMouseY) / canvasScale;
-    
-    // Aggiorna la posizione del nodo
-    aiNode.style.transform = `translate(${initialX + deltaX}px, ${initialY + deltaY}px)`;
-    
-    // Aggiorna le connessioni se presenti
-    updateConnectors();
-  }
-  
-  // Funzione per gestire il rilascio del mouse
-  function handleNodeDragEnd() {
-    // Rimuovi la classe dragging
-    aiNode.classList.remove('dragging');
-    
-    // Rimuovi gli event listener
-    document.removeEventListener('mousemove', handleNodeDragMove);
-    document.removeEventListener('mouseup', handleNodeDragEnd);
-    
-    // Aggiorna la minimappa
-    updateMinimap();
-  }
-  
-  document.addEventListener('mousemove', handleNodeDragMove);
-  document.addEventListener('mouseup', handleNodeDragEnd);
-}
-
-// Crea una connessione permanente tra due porte
-function createConnection(sourceNode, sourcePort, targetNode, targetPort) {
-  // Assicurati che sourcePort sia sempre la porta di output e targetPort quella di input
-  if (sourcePort.dataset.portType === 'input') {
-    [sourceNode, targetNode] = [targetNode, sourceNode];
-    [sourcePort, targetPort] = [targetPort, sourcePort];
-  }
-  
-  // Crea l'oggetto connessione
-  const connection = {
-    id: `conn-${Date.now()}`,
-    sourceNodeId: sourceNode.id,
-    targetNodeId: targetNode.id,
-    sourcePortType: sourcePort.dataset.portType,
-    targetPortType: targetPort.dataset.portType,
-    element: null
-  };
-  
-  // Crea l'elemento visivo della connessione
-  const workspaceArea = document.getElementById('workflowWorkspace');
-  const connectorElement = document.createElement('div');
-  connectorElement.className = 'node-connector';
-  connectorElement.id = connection.id;
-  workspaceArea.appendChild(connectorElement);
-  
-  // Salva il riferimento all'elemento
-  connection.element = connectorElement;
-  
-  // Aggiungi la connessione all'array
-  connectors.push(connection);
-  
-  // Aggiorna la visualizzazione della connessione
-  updateConnectorPosition(connection);
-}
-
-// Aggiorna la posizione di tutti i connettori
-function updateConnectors() {
-  connectors.forEach(updateConnectorPosition);
-}
-
-// Aggiorna la posizione di un singolo connettore
-function updateConnectorPosition(connector) {
-  // Ottieni i nodi di origine e destinazione
-  const sourceNode = document.getElementById(connector.sourceNodeId);
-  const targetNode = document.getElementById(connector.targetNodeId);
-  
-  if (!sourceNode || !targetNode || !connector.element) {
-    // Rimuovi il connettore se i nodi non esistono più
-    if (connector.element) {
-      connector.element.remove();
-    }
-    const index = connectors.indexOf(connector);
-    if (index !== -1) {
-      connectors.splice(index, 1);
-    }
-    return;
-  }
-  
-  // Ottieni le porte
-  const sourcePort = sourceNode.querySelector(`.node-connector-port.${connector.sourcePortType}`);
-  const targetPort = targetNode.querySelector(`.node-connector-port.${connector.targetPortType}`);
-  
-  if (!sourcePort || !targetPort) return;
-  
-  // Calcola le posizioni delle porte nel sistema di coordinate del workspace
-  const workspaceArea = document.getElementById('workflowWorkspace');
-  const workspaceRect = workspaceArea.getBoundingClientRect();
-  
-  const sourcePortRect = sourcePort.getBoundingClientRect();
-  const targetPortRect = targetPort.getBoundingClientRect();
-  
-  const sourceX = (sourcePortRect.left + sourcePortRect.width / 2 - workspaceRect.left) / canvasScale - canvasOffsetX / canvasScale;
-  const sourceY = (sourcePortRect.top + sourcePortRect.height / 2 - workspaceRect.top) / canvasScale - canvasOffsetY / canvasScale;
-  
-  const targetX = (targetPortRect.left + targetPortRect.width / 2 - workspaceRect.left) / canvasScale - canvasOffsetX / canvasScale;
-  const targetY = (targetPortRect.top + targetPortRect.height / 2 - workspaceRect.top) / canvasScale - canvasOffsetY / canvasScale;
-  
-  // Calcola la distanza e l'angolo
-  const deltaX = targetX - sourceX;
-  const deltaY = targetY - sourceY;
-  const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-  const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-  
-  // Aggiorna il connettore
-  connector.element.style.left = `${sourceX}px`;
-  connector.element.style.top = `${sourceY}px`;
-  connector.element.style.width = `${distance}px`;
-  connector.element.style.transform = `rotate(${angle}deg)`;
-}
-
-// Crea l'albero delle cartelle per i file .syn
-function createFolderTree(container) {
-  // Crea il container dell'albero delle cartelle
-  const folderTree = document.createElement('div');
-  folderTree.className = 'workflow-folder-tree';
-  container.appendChild(folderTree);
-  
-  // Aggiungi l'header
-  const folderTreeHeader = document.createElement('div');
-  folderTreeHeader.className = 'folder-tree-header';
-  folderTreeHeader.innerHTML = `
-    <div class="folder-tree-title">Workflow Files</div>
-    <button class="folder-tree-btn"><i class="fas fa-plus"></i></button>
-  `;
-  folderTree.appendChild(folderTreeHeader);
-  
-  // Aggiungi il contenuto
-  const folderTreeContent = document.createElement('div');
-  folderTreeContent.className = 'folder-tree-content';
-  folderTree.appendChild(folderTreeContent);
-  
-  // Aggiungi esempi di file e cartelle
-  folderTreeContent.innerHTML = `
-    <div class="folder-item">
-      <div class="folder-toggle"><i class="fas fa-caret-down"></i></div>
-      <div class="folder-icon"><i class="fas fa-folder-open"></i></div>
-      <div class="folder-name">I miei workflow</div>
-    </div>
-    <div class="folder-item" style="padding-left: 24px;">
-      <div class="folder-toggle"></div>
-      <div class="file-icon"><i class="fas fa-file"></i></div>
-      <div class="file-name">Brainstorming.syn</div>
-    </div>
-    <div class="folder-item" style="padding-left: 24px;">
-      <div class="folder-toggle"></div>
-      <div class="file-icon"><i class="fas fa-file"></i></div>
-      <div class="file-name">Roadmap Q3.syn</div>
-    </div>
-    <div class="folder-item">
-      <div class="folder-toggle"><i class="fas fa-caret-right"></i></div>
-      <div class="folder-icon"><i class="fas fa-folder"></i></div>
-      <div class="folder-name">Progetti</div>
-    </div>
-    <div class="folder-item">
-      <div class="folder-toggle"><i class="fas fa-caret-right"></i></div>
-      <div class="folder-icon"><i class="fas fa-folder"></i></div>
-      <div class="folder-name">Archivio</div>
-    </div>
-  `;
-  
-  // Aggiungi gli eventi per espandere/contrarre le cartelle
-  const folderToggles = folderTreeContent.querySelectorAll('.folder-toggle');
-  folderToggles.forEach(toggle => {
-    toggle.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const folderItem = e.currentTarget.closest('.folder-item');
-      if (!folderItem) return;
-      
-      const icon = toggle.querySelector('i');
-      if (!icon) return;
-      
-      if (icon.classList.contains('fa-caret-right')) {
-        icon.classList.remove('fa-caret-right');
-        icon.classList.add('fa-caret-down');
-      } else if (icon.classList.contains('fa-caret-down')) {
-        icon.classList.remove('fa-caret-down');
-        icon.classList.add('fa-caret-right');
-      }
-      
-      // Qui andrebbe implementata la logica per mostrare/nascondere i file nella cartella
-    });
-  });
-  
-  // Aggiungi gli eventi per cliccare sui file
-  const fileItems = folderTreeContent.querySelectorAll('.file-name');
-  fileItems.forEach(fileItem => {
-    fileItem.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const filename = e.currentTarget.textContent;
-      
-      // Qui andrebbe implementata la logica per caricare il file selezionato
-      console.log(`Loading file: ${filename}`);
-      
-      // Attiva la voce di menu
-      const allItems = folderTreeContent.querySelectorAll('.folder-item');
-      allItems.forEach(item => item.classList.remove('active'));
-      e.currentTarget.closest('.folder-item').classList.add('active');
-    });
-  });
-  
-  // Aggiungi il pulsante per aggiungere un nuovo file
-  const addButton = folderTreeHeader.querySelector('.folder-tree-btn');
-  if (addButton) {
-    addButton.addEventListener('click', () => {
-      // Salva lo stato attuale come nuovo file
-      const fileName = `New Workflow ${new Date().toLocaleString('it-IT', { 
-        day: '2-digit',
-        month: '2-digit',
-        year: '2-digit'
-      })}.syn`;
-      
-      console.log(`Creating new file: ${fileName}`);
-      
-      // Qui andrebbe implementata la logica per creare un nuovo file
-      // e aggiungerlo all'albero delle cartelle
-    });
-  }
-}
-
-// Configura i gestori di eventi per una nota
-function setupNoteEventHandlers(note) {
-  if (!note) return;
-  
-  // Aggiungi gestore eventi per il titolo della nota
-  const noteTitle = note.querySelector('.note-title');
-  if (noteTitle) {
-    const noteId = note.id;
-    setupNoteTitleEditing(noteTitle, noteId);
-  }
-  
-  // Aggiungi gestore eventi per il pulsante di espansione
-  const expandButton = note.querySelector('.note-expand-btn');
-  if (expandButton) {
-    expandButton.addEventListener('click', (e) => {
-      e.stopPropagation(); // Previene la propagazione al workspace
-      enterDocumentMode(note);
-    });
-  }
-  
-  // Aggiungi gestore eventi per il pulsante di chiusura
-  const closeButton = note.querySelector('.note-close-btn');
-  if (closeButton) {
-    closeButton.addEventListener('click', (e) => {
-      e.stopPropagation(); // Previene la propagazione al workspace
-      note.remove();
-      updateMinimap();
-    });
-  }
-  
-  // Configura i pulsanti "Aggiungi tra" i blocchi
-  initializeAddBetweenButtons(note);
-  
-  // Configura i gestori di eventi per i blocchi
-  const blocks = note.querySelectorAll('.note-block');
-  blocks.forEach(block => {
-    setupBlockEventHandlers(block);
-  });
-  
-  // Configura il trascinamento e il ridimensionamento della nota
-  note.addEventListener('mousedown', function(e) {
-    // Delega all'handler generale per le note
-    // Il resto della logica è gestito da handleNoteMouseDown
-    const noteElement = e.target.closest('.workspace-note');
-    if (noteElement) {
-      const noteId = noteElement.id;
-      setActiveNote(noteId);
-    }
-  });
-}
-
-// Mostra il menu di inserimento per la modalità documento
-function showDocumentInsertMenu(insertButton) {
-  // Rimuovi eventuali menu esistenti
-  const existingMenu = document.querySelector('.document-insert-menu');
-  if (existingMenu) existingMenu.remove();
-  
-  // Crea il menu
-  const insertMenu = document.createElement('div');
-  insertMenu.className = 'document-insert-menu';
-  
-  // Posizione il menu sotto il pulsante
-  const buttonRect = insertButton.getBoundingClientRect();
-  insertMenu.style.position = 'absolute';
-  insertMenu.style.top = `${buttonRect.bottom + 5}px`;
-  insertMenu.style.left = `${buttonRect.left}px`;
-  insertMenu.style.zIndex = '1000';
-  insertMenu.style.backgroundColor = '#fff';
-  insertMenu.style.border = '1px solid #dadce0';
-  insertMenu.style.borderRadius = '4px';
-  insertMenu.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
-  insertMenu.style.padding = '8px 0';
-  insertMenu.style.width = '250px';
-  
-  // Definisci gli elementi da inserire
-  const insertItems = [
-    { icon: 'fa-image', title: 'Immagine', description: 'Inserisci un\'immagine o carica un file' },
-    { icon: 'fa-table', title: 'Tabella', description: 'Inserisci una tabella strutturata' },
-    { icon: 'fa-chart-bar', title: 'Grafico', description: 'Visualizza i dati con un grafico' },
-    { icon: 'fa-drawing-polygon', title: 'Disegno', description: 'Crea un disegno o uno schizzo' },
-    { icon: 'fa-code', title: 'Codice', description: 'Inserisci un blocco di codice formattato' },
-    { icon: 'fa-list-ol', title: 'Elenco numerato', description: 'Crea un elenco ordinato' },
-    { icon: 'fa-list-ul', title: 'Elenco puntato', description: 'Crea un elenco non ordinato' },
-    { icon: 'fa-tasks', title: 'Elenco di attività', description: 'Crea una lista di cose da fare' },
-    { icon: 'fa-link', title: 'Link', description: 'Aggiungi un link a una pagina web' },
-    { icon: 'fa-bookmark', title: 'Segnalibro', description: 'Marca una sezione per riferimento' }
-  ];
-  
-  // Crea gli elementi del menu
-  insertItems.forEach(item => {
-    const menuItem = document.createElement('div');
-    menuItem.className = 'document-insert-item';
-    menuItem.style.padding = '8px 16px';
-    menuItem.style.display = 'flex';
-    menuItem.style.alignItems = 'center';
-    menuItem.style.gap = '12px';
-    menuItem.style.cursor = 'pointer';
-    menuItem.style.transition = 'background-color 0.2s';
-    
-    menuItem.innerHTML = `
-      <div class="document-insert-icon" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: #5f6368;">
-        <i class="fas ${item.icon}"></i>
-      </div>
-      <div class="document-insert-content" style="flex: 1;">
-        <div class="document-insert-title" style="font-size: 14px; color: #202124; margin-bottom: 2px;">${item.title}</div>
-        <div class="document-insert-description" style="font-size: 12px; color: #5f6368;">${item.description}</div>
-      </div>
-    `;
-    
-    // Hover effect
-    menuItem.addEventListener('mouseover', () => {
-      menuItem.style.backgroundColor = '#f1f3f4';
-    });
-    
-    menuItem.addEventListener('mouseout', () => {
-      menuItem.style.backgroundColor = 'transparent';
-    });
-    
-    // Click handling
-    menuItem.addEventListener('click', () => {
-      handleDocumentInsert(item.title.toLowerCase());
-      insertMenu.remove();
-    });
-    
-    insertMenu.appendChild(menuItem);
-  });
-  
-  // Aggiungi il menu al document body
-  document.body.appendChild(insertMenu);
-  
-  // Chiudi il menu quando si fa clic altrove
-  const closeInsertMenu = (e) => {
-    if (!insertMenu.contains(e.target) && e.target !== insertButton) {
-      insertMenu.remove();
-      document.removeEventListener('click', closeInsertMenu);
-    }
-  };
-  
-  // Aggiungi un delay per evitare che il menu si chiuda immediatamente
-  setTimeout(() => {
-    document.addEventListener('click', closeInsertMenu);
-  }, 100);
-}
-
-// Gestisci l'inserimento di elementi nel documento
-function handleDocumentInsert(itemType) {
-  // Trova il documento e il blocco attivo
-  const documentContent = document.querySelector('.document-content');
-  const activeBlock = documentContent.querySelector('.note-block.focused');
-  
-  if (!documentContent || !activeBlock) return;
-  
-  // Determina l'indice del blocco attivo
-  const blocks = Array.from(documentContent.querySelectorAll('.note-block'));
-  const activeIndex = blocks.indexOf(activeBlock);
-  
-  // Crea un nuovo blocco in base al tipo selezionato
-  const newBlock = document.createElement('div');
-  newBlock.className = 'note-block';
-  
-  switch (itemType) {
-    case 'immagine':
-      newBlock.classList.add('block-image');
-      newBlock.innerHTML = `
-        <div class="block-image-container">
-          <img class="block-image" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150' viewBox='0 0 200 150'%3E%3Crect width='200' height='150' fill='%23f1f3f4'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='16' fill='%235f6368'%3EFai clic per inserire un'immagine%3C/text%3E%3C/svg%3E" alt="Placeholder">
-          <div class="block-content" contenteditable="true" data-placeholder="Aggiungi una didascalia..."></div>
-        </div>
-      `;
-      break;
-    case 'tabella':
-      newBlock.classList.add('block-table');
-      newBlock.innerHTML = `
-        <table class="document-table">
-          <thead>
-            <tr>
-              <th><div class="block-content" contenteditable="true">Intestazione 1</div></th>
-              <th><div class="block-content" contenteditable="true">Intestazione 2</div></th>
-              <th><div class="block-content" contenteditable="true">Intestazione 3</div></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><div class="block-content" contenteditable="true">Cella 1</div></td>
-              <td><div class="block-content" contenteditable="true">Cella 2</div></td>
-              <td><div class="block-content" contenteditable="true">Cella 3</div></td>
-            </tr>
-            <tr>
-              <td><div class="block-content" contenteditable="true">Cella 4</div></td>
-              <td><div class="block-content" contenteditable="true">Cella 5</div></td>
-              <td><div class="block-content" contenteditable="true">Cella 6</div></td>
-            </tr>
-          </tbody>
-        </table>
-      `;
-      break;
-    case 'codice':
-      newBlock.classList.add('block-code');
-      newBlock.innerHTML = `
-        <div class="block-code-header">
-          <select class="code-language-select">
-            <option value="javascript">JavaScript</option>
-            <option value="python">Python</option>
-            <option value="html">HTML</option>
-            <option value="css">CSS</option>
-            <option value="java">Java</option>
-            <option value="csharp">C#</option>
-          </select>
-        </div>
-        <pre class="block-code-content"><code class="block-content" contenteditable="true" data-placeholder="Scrivi il tuo codice qui..."></code></pre>
-      `;
-      break;
-    case 'elenco numerato':
-      newBlock.classList.add('block-ordered-list');
-      newBlock.innerHTML = `
-        <ol>
-          <li><div class="block-content" contenteditable="true">Primo elemento</div></li>
-          <li><div class="block-content" contenteditable="true">Secondo elemento</div></li>
-          <li><div class="block-content" contenteditable="true">Terzo elemento</div></li>
-        </ol>
-      `;
-      break;
-    case 'elenco puntato':
-      newBlock.classList.add('block-unordered-list');
-      newBlock.innerHTML = `
-        <ul>
-          <li><div class="block-content" contenteditable="true">Primo elemento</div></li>
-          <li><div class="block-content" contenteditable="true">Secondo elemento</div></li>
-          <li><div class="block-content" contenteditable="true">Terzo elemento</div></li>
-        </ul>
-      `;
-      break;
-    case 'elenco di attività':
-      newBlock.classList.add('block-checklist');
-      newBlock.innerHTML = `
-        <div class="checklist-container">
-          <div class="checklist-item">
-            <input type="checkbox" class="checklist-checkbox">
-            <div class="block-content" contenteditable="true">Attività da completare</div>
-          </div>
-          <div class="checklist-item">
-            <input type="checkbox" class="checklist-checkbox">
-            <div class="block-content" contenteditable="true">Altra attività da completare</div>
-          </div>
-          <div class="checklist-item">
-            <input type="checkbox" class="checklist-checkbox">
-            <div class="block-content" contenteditable="true">Ancora un'altra attività</div>
-          </div>
-        </div>
-      `;
-      break;
-    case 'link':
-      // Chiedi l'URL tramite prompt
-      const url = prompt('Inserisci l\'URL:', 'https://');
-      if (!url) return; // Se l'utente annulla, non fare nulla
-      
-      newBlock.classList.add('block-link');
-      newBlock.innerHTML = `
-        <div class="block-link-container">
-          <a href="${url}" target="_blank" class="block-link-preview">
-            <div class="block-link-favicon">
-              <i class="fas fa-link"></i>
-            </div>
-            <div class="block-link-content">
-              <div class="block-link-title">Link a ${url}</div>
-              <div class="block-link-url">${url}</div>
-            </div>
-          </a>
-          <div class="block-content" contenteditable="true" data-placeholder="Aggiungi una descrizione..."></div>
-        </div>
-      `;
-      break;
-    default:
-      // Per gli altri tipi, crea un blocco di testo normale
-      newBlock.classList.add('block-paragraph');
-      newBlock.innerHTML = `<div class="block-content" contenteditable="true" data-placeholder="Scrivi qui..."></div>`;
-  }
-  
-  // Inserisci il nuovo blocco dopo quello attivo
-  if (activeIndex >= 0 && activeIndex < blocks.length - 1) {
-    documentContent.insertBefore(newBlock, blocks[activeIndex + 1]);
-  } else {
-    documentContent.appendChild(newBlock);
-  }
-  
-  // Aggiungi gli event handler necessari
-  setupBlockEventHandlers(newBlock);
-  
-  // Focus sul nuovo blocco
-  const blockContent = newBlock.querySelector('.block-content');
-  if (blockContent) {
-    setTimeout(() => {
-      blockContent.focus();
-      
-      // Rimuovi la classe focused da tutti i blocchi
-      documentContent.querySelectorAll('.note-block').forEach(b => b.classList.remove('focused'));
-      
-      // Aggiungi la classe focused al nuovo blocco
-      newBlock.classList.add('focused');
-    }, 0);
-  }
-}
-
-function showAddBlockMenu(blockContent) {
-    // Remove any existing menus
-    const existingMenu = document.querySelector('.add-block-menu');
-    if (existingMenu) {
-        existingMenu.remove();
-    }
-    
-    const block = blockContent.closest('.note-block');
-    const blockRect = blockContent.getBoundingClientRect();
-    const noteId = blockContent.closest('[data-note-id]').getAttribute('data-note-id');
-    const blockIndex = parseInt(block.getAttribute('data-block-index'));
-    
-    const menu = document.createElement('div');
-    menu.className = 'add-block-menu';
-    
-    // Position the menu near the cursor but ensure it's fully visible
-    const documentOverlay = document.getElementById('documentOverlay');
-    if (documentOverlay) {
-        menu.style.left = `${blockRect.left}px`;
-        menu.style.top = `${blockRect.bottom + 5}px`;
-        menu.style.maxHeight = '350px';
-        menu.style.overflowY = 'auto';
-        menu.style.backgroundColor = '#252525';
-        menu.style.color = '#e6e6e6';
-        menu.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
-    } else {
-        menu.style.left = `${blockRect.left}px`;
-        menu.style.top = `${blockRect.bottom + 5}px`;
-    }
-    
-    // Add search box
-    const searchBox = document.createElement('div');
-    searchBox.className = 'add-block-menu-search';
-    
-    const searchInput = document.createElement('input');
-    searchInput.type = 'text';
-    searchInput.placeholder = 'Search for a block...';
-    searchInput.className = 'add-block-menu-search-input';
-    searchInput.style.backgroundColor = '#333';
-    searchInput.style.color = '#fff';
-    searchInput.style.border = 'none';
-    
-    searchBox.appendChild(searchInput);
-    menu.appendChild(searchBox);
-    
-    // Basic blocks section
-    const basicSection = createMenuSection('Basic blocks', [
-        { 
-            id: 'paragraph', 
-            name: 'Text', 
-            icon: 'fa-paragraph', 
-            description: 'Plain text block',
-            kbd: '↵'
-        },
-        { 
-            id: 'heading', 
-            name: 'Heading 1', 
-            icon: 'fa-heading', 
-            description: 'Large section heading',
-            kbd: '#'
-        },
-        { 
-            id: 'subheading', 
-            name: 'Heading 2', 
-            icon: 'fa-heading', 
-            description: 'Medium section heading',
-            kbd: '##'
-        },
-        { 
-            id: 'subheading3', 
-            name: 'Heading 3', 
-            icon: 'fa-heading', 
-            description: 'Small section heading',
-            kbd: '###'
-        }
-    ]);
-    
-    // Media blocks section
-    const mediaSection = createMenuSection('Media', [
-        { 
-            id: 'image', 
-            name: 'Image', 
-            icon: 'fa-image', 
-            description: 'Upload or embed an image',
-            kbd: '📷'
-        },
-        { 
-            id: 'divider', 
-            name: 'Divider', 
-            icon: 'fa-minus', 
-            description: 'Visual separator',
-            kbd: '---'
-        },
-        { 
-            id: 'code', 
-            name: 'Code', 
-            icon: 'fa-code', 
-            description: 'Code block with syntax highlighting',
-            kbd: '```'
-        }
-    ]);
-    
-    // Interactive blocks section
-    const interactiveSection = createMenuSection('Interactive', [
-        { 
-            id: 'todo', 
-            name: 'To-do list', 
-            icon: 'fa-check-square', 
-            description: 'Track tasks with a to-do list',
-            kbd: '[]'
-        },
-        { 
-            id: 'toggle', 
-            name: 'Toggle', 
-            icon: 'fa-caret-right', 
-            description: 'Collapsible content block',
-            kbd: '>'
-        },
-        { 
-            id: 'callout', 
-            name: 'Callout', 
-            icon: 'fa-exclamation-circle', 
-            description: 'Highlighted content block',
-            kbd: '!'
-        }
-    ]);
-    
-    menu.appendChild(basicSection);
-    menu.appendChild(mediaSection);
-    menu.appendChild(interactiveSection);
-    
-    // Add the menu to the document
-    document.body.appendChild(menu);
-    
-    // Focus the search input
-    searchInput.focus();
-    
-    // Filter menu items when typing in search
-    searchInput.addEventListener('input', () => {
-        const searchTerm = searchInput.value.toLowerCase();
-        const items = menu.querySelectorAll('.add-block-item');
-        
-        items.forEach(item => {
-            const itemName = item.querySelector('.add-block-item-header').textContent.toLowerCase();
-            const itemDesc = item.querySelector('.add-block-item-description').textContent.toLowerCase();
-            
-            if (itemName.includes(searchTerm) || itemDesc.includes(searchTerm)) {
-                item.style.display = 'block';
-            } else {
-                item.style.display = 'none';
-            }
-        });
-        
-        // Show/hide section titles based on visible items
-        const sections = menu.querySelectorAll('.add-block-menu-section');
-        sections.forEach(section => {
-            const visibleItems = Array.from(section.querySelectorAll('.add-block-item')).filter(item => 
-                item.style.display !== 'none'
-            );
-            
-            const sectionTitle = section.querySelector('.add-block-menu-section-title');
-            sectionTitle.style.display = visibleItems.length > 0 ? 'block' : 'none';
-        });
-    });
-    
-    // Handle click outside to close menu
-    const handleOutsideClick = (e) => {
-        if (!menu.contains(e.target) && e.target !== blockContent) {
-            menu.remove();
-            document.removeEventListener('click', handleOutsideClick);
-        }
-    };
-    
-    // Small delay to prevent immediate closing
-    setTimeout(() => {
-        document.addEventListener('click', handleOutsideClick);
-    }, 100);
-    
-    // Escape key to close menu
-    document.addEventListener('keydown', function escKeyHandler(e) {
-        if (e.key === 'Escape') {
-            menu.remove();
-            document.removeEventListener('keydown', escKeyHandler);
-        }
-    });
-    
-    // Function to create a section of menu items
-    function createMenuSection(title, items) {
-        const section = document.createElement('div');
-        section.className = 'add-block-menu-section';
-        
-        const sectionTitle = document.createElement('div');
-        sectionTitle.className = 'add-block-menu-section-title';
-        sectionTitle.textContent = title;
-        
-        section.appendChild(sectionTitle);
-        
-        items.forEach(item => {
-            const itemEl = document.createElement('div');
-            itemEl.className = 'add-block-item';
-            itemEl.style.cursor = 'pointer';
-            
-            // Create header with icon and name
-            const itemHeader = document.createElement('div');
-            itemHeader.className = 'add-block-item-header';
-            
-            const icon = document.createElement('i');
-            icon.className = `fas ${item.icon}`;
-            icon.style.marginRight = '8px';
-            icon.style.width = '16px';
-            icon.style.textAlign = 'center';
-            
-            const itemName = document.createElement('span');
-            itemName.textContent = item.name;
-            
-            itemHeader.appendChild(icon);
-            itemHeader.appendChild(itemName);
-            
-            // Create description
-            const itemDesc = document.createElement('div');
-            itemDesc.className = 'add-block-item-description';
-            itemDesc.textContent = item.description;
-            
-            // Create keyboard shortcut
-            const itemKbd = document.createElement('div');
-            itemKbd.className = 'add-block-item-kbd';
-            itemKbd.textContent = item.kbd;
-            
-            // Add all to item
-            itemEl.appendChild(itemHeader);
-            itemEl.appendChild(itemDesc);
-            itemEl.appendChild(itemKbd);
-            
-            // Handle item click
-            itemEl.addEventListener('click', () => {
-                handleBlockTypeSelection(noteId, blockIndex, item.id);
-                menu.remove();
-                document.removeEventListener('click', handleOutsideClick);
-            });
-            
-            section.appendChild(itemEl);
-        });
-        
-        return section;
-    }
-}
-
-function exitDocumentMode() {
-    const overlay = document.getElementById('documentOverlay');
-    if (!overlay) return;
-    
-    const noteId = overlay.getAttribute('data-note-id');
-    const note = document.querySelector(`.workspace-note[data-note-id="${noteId}"]`);
-    
-    if (note) {
-        // Save all content back to the original note
-        saveDocumentContent(overlay, note);
-        
-        // Remove overlay with fade-out animation
-        overlay.style.opacity = '0';
-        
-        setTimeout(() => {
-            // Rimuovi l'overlay dal suo parent, non necessariamente dal body
-            if (overlay.parentNode) {
-                overlay.parentNode.removeChild(overlay);
-            }
-            
-            document.body.classList.remove('document-mode');
-            restoreCanvasElements();
-            
-            // Remove any other document-related elements that might be left
-            const menus = document.querySelectorAll('.add-block-menu, .document-insert-menu');
-            menus.forEach(menu => menu.remove());
-            
-            // Restore canvas state
-            const canvasStateStr = sessionStorage.getItem('canvasState');
-            if (canvasStateStr) {
-                try {
-                    const canvasState = JSON.parse(canvasStateStr);
-                    const workspaceEl = document.querySelector('.workflow-workspace');
-                    
-                    if (workspaceEl && canvasState) {
-                        workspaceEl.scrollTop = canvasState.scrollTop;
-                        workspaceEl.scrollLeft = canvasState.scrollLeft;
-                        
-                        canvasScale = canvasState.scale;
-                        canvasOffsetX = canvasState.translateX;
-                        canvasOffsetY = canvasState.translateY;
-                        
-                        updateCanvasTransform();
-                    }
-                } catch (e) {
-                    console.error('Failed to restore canvas state:', e);
-                }
-            }
-        }, 200);
-    }
-}
-
-// Helper function to save document content back to the note
-function saveDocumentContent(overlay, note) {
-    const documentContainer = overlay.querySelector('.document-container');
-    const noteContent = note.querySelector('.note-content');
-    
-    if (documentContainer && noteContent) {
-        // Clear the original note content
-        noteContent.innerHTML = '';
-        
-        // Copy each block from the document to the note
-        const blocks = documentContainer.querySelectorAll('.note-block');
-        blocks.forEach((block, index) => {
-            const newBlock = block.cloneNode(true);
-            
-            // Reset block styling that might have been affected by dark mode
-            const blockContent = newBlock.querySelector('.block-content');
-            if (blockContent) {
-                blockContent.style.color = ''; // Remove any explicit color setting
-                
-                // Remove dark mode specific attributes
-                blockContent.removeAttribute('data-placeholder');
-                
-                // Remove any event listeners (they'll be re-added when needed)
-                const newBlockContent = blockContent.cloneNode(true);
-                blockContent.parentNode.replaceChild(newBlockContent, blockContent);
-            }
-            
-            // Update block index
-            newBlock.setAttribute('data-block-index', index);
-            
-            noteContent.appendChild(newBlock);
-        });
-        
-        // Update note title
-        const titleInput = overlay.querySelector('.document-title-input');
-        if (titleInput) {
-            const noteTitle = note.querySelector('.note-title');
-            if (noteTitle) {
-                noteTitle.textContent = titleInput.value;
-            }
-        }
-    }
-}
-
-// Creates a new note in the workflow
-function createNewNote() {
-  console.log('Creating new note');
-  
-  // Get the workspace area
-  const workspaceArea = document.getElementById('workflowWorkspace');
-  if (!workspaceArea) {
-    console.error('Workspace area not found');
-    return;
-  }
-
-  // Increment note counter for unique IDs
-  noteCounter++;
-  const noteId = `note-${Date.now()}-${noteCounter}`;
-  
-  // Create the note element
-  const note = document.createElement('div');
-  note.className = 'workspace-note';
-  note.id = noteId;
-  
-  // Calculate position - place in viewport center or offset from last note
-  let posX = 100, posY = 100;
-  
-  if (lastNotePosition) {
-    // Offset from the last note position
-    posX = lastNotePosition.x + 30;
-    posY = lastNotePosition.y + 30;
-    
-    // If too far right, reset X and move down
-    if (posX > 600) {
-      posX = 100;
-      posY += 50;
-    }
-  }
-  
-  // Update last note position for next time
-  lastNotePosition = { x: posX, y: posY };
-  
-  // Set position and size
+  // Impostiamo la posizione usando translate per migliori performance
   note.style.transform = `translate(${posX}px, ${posY}px)`;
-  note.style.width = '300px';
-  note.style.height = 'auto';
   
-  // Create note header
+  // Imposta larghezza e altezza
+  note.style.width = '300px';
+  note.style.height = '200px';
+  
+  // Aggiunge l'intestazione alla nota
   const noteHeader = document.createElement('div');
   noteHeader.className = 'note-header';
-  
-  const noteTitle = document.createElement('div');
-  noteTitle.className = 'note-title';
-  noteTitle.contentEditable = true;
-  noteTitle.textContent = 'Nuova Nota';
-  
-  const noteActions = document.createElement('div');
-  noteActions.className = 'note-actions';
-  noteActions.innerHTML = `
-    <button class="note-action note-expand-btn"><i class="fas fa-expand-alt"></i></button>
-    <button class="note-action note-close-btn"><i class="fas fa-times"></i></button>
-  `;
-  
-  noteHeader.appendChild(noteTitle);
-  noteHeader.appendChild(noteActions);
   note.appendChild(noteHeader);
   
-  // Create note content
+  // Aggiunge il titolo della nota all'intestazione
+  const titleElement = document.createElement('div');
+  titleElement.className = 'note-title';
+  titleElement.contentEditable = 'true';
+  titleElement.setAttribute('spellcheck', 'false');
+  titleElement.setAttribute('data-placeholder', 'Titolo nota');
+  
+  // Genera un titolo predefinito
+  noteCounter++;
+  titleElement.textContent = `Nota ${noteCounter}`;
+  noteTitles[noteId] = titleElement.textContent;
+  
+  // Aggiungi l'evento per modificare il titolo
+  setupNoteTitleEditing(titleElement, noteId);
+  
+  noteHeader.appendChild(titleElement);
+  
+  // Aggiungi il pulsante per entrare nella modalità documento
+  const noteActions = document.createElement('div');
+  noteActions.className = 'note-actions';
+  
+  const expandButton = document.createElement('button');
+  expandButton.className = 'note-action';
+  expandButton.innerHTML = '<i class="fas fa-expand-alt"></i>';
+  expandButton.title = 'Espandi';
+  expandButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    enterDocumentMode(note);
+  });
+  
+  noteActions.appendChild(expandButton);
+  noteHeader.appendChild(noteActions);
+  
+  // Aggiungi la maniglia di ridimensionamento
+  const resizeHandle = document.createElement('div');
+  resizeHandle.className = 'note-resize-handle';
+  resizeHandle.innerHTML = '<i class="fas fa-grip-lines-diagonal"></i>';
+  note.appendChild(resizeHandle);
+  
+  // Aggiunge il contenuto della nota
   const noteContent = document.createElement('div');
   noteContent.className = 'note-content';
+  note.appendChild(noteContent);
   
-  // Add initial empty paragraph block
-  const block = document.createElement('div');
-  block.className = 'note-block block-paragraph';
-  block.setAttribute('data-block-type', 'paragraph');
-  block.setAttribute('data-block-index', '0');
+  // Aggiungi un blocco di default
+  const defaultBlock = document.createElement('div');
+  defaultBlock.className = 'note-block';
+  defaultBlock.id = `block-${Date.now()}`;
   
   const blockContent = document.createElement('div');
   blockContent.className = 'block-content';
-  blockContent.setAttribute('contenteditable', 'true');
-  blockContent.setAttribute('data-placeholder', 'Type something...');
+  blockContent.contentEditable = 'true';
+  blockContent.setAttribute('data-placeholder', 'Scrivi qui...');
+  blockContent.addEventListener('input', handleNoteContentEdit);
   
-  // Add block drag handle
-  const dragHandle = document.createElement('div');
-  dragHandle.className = 'block-drag-handle';
-  dragHandle.innerHTML = '<i class="fas fa-grip-lines"></i>';
+  defaultBlock.appendChild(blockContent);
+  noteContent.appendChild(defaultBlock);
   
-  block.appendChild(dragHandle);
-  block.appendChild(blockContent);
-  noteContent.appendChild(block);
-  note.appendChild(noteContent);
+  // Aggiungi la nota al workspace
+  workspaceContent.appendChild(note);
   
-  // Add resize handle
-  const resizeHandle = document.createElement('div');
-  resizeHandle.className = 'note-resize-handle';
-  note.appendChild(resizeHandle);
-  
-  // Add the note to the workspace
-  workspaceArea.appendChild(note);
-  
-  // Set up event handlers for the note
-  setupNoteEventHandlers(note);
-  
-  // Add the note to the active note tracking
+  // Imposta la nota come attiva
   setActiveNote(noteId);
   
-  // Update the minimap
-  updateMinimap();
+  // Aggiungi gli event handlers
+  setupNoteEventHandlers(note);
   
-  // Focus on first block content
-  setTimeout(() => {
-    blockContent.focus();
-  }, 100);
-
+  // Aggiungi i connection ports
+  setupConnectionPorts(note);
+  
+  // Aggiungi event listener per la maniglia di ridimensionamento
+  resizeHandle.addEventListener('mousedown', function(e) {
+    handleNoteResizeStart(e);
+  });
+  
+  // Inizializza i pulsanti "Aggiungi tra" per questa nota
+  initializeAddBetweenButtons(note);
+  
+  // Salva lo stato iniziale della nota
+  saveNoteState(noteId);
+  
   return note;
 }
 
@@ -3406,9 +957,16 @@ function setupBlockEventHandlers(block) {
     blockContent.addEventListener('keydown', handleBlockKeyDown);
   }
   
-  // Aggiungi gestore per il drag handle
-  const dragHandle = block.querySelector('.block-drag-handle');
-  if (dragHandle) {
+  // Aggiungi un handle di trascinamento se non esiste già
+  if (!block.querySelector('.block-drag-handle')) {
+    const dragHandle = document.createElement('div');
+    dragHandle.className = 'block-drag-handle';
+    dragHandle.innerHTML = '<i class="fas fa-grip-lines"></i>';
+    block.insertBefore(dragHandle, block.firstChild);
+    dragHandle.addEventListener('mousedown', handleBlockDragStart);
+  } else {
+    // Se già esiste, assicurati che abbia l'event listener
+    const dragHandle = block.querySelector('.block-drag-handle');
     dragHandle.addEventListener('mousedown', handleBlockDragStart);
   }
   
@@ -3711,12 +1269,23 @@ function updateDocumentWordCount(documentContent) {
 // Salva lo stato di una nota
 function saveNoteState(noteId) {
   const note = document.getElementById(noteId);
-  if (!note) return;
+  if (!note) {
+    console.error(`Nota con ID ${noteId} non trovata`);
+    return;
+  }
   
   console.log(`Saving state for note ${noteId}`);
   
-  // In un'implementazione reale, qui si salverebbe lo stato della nota
-  // Per ora lo gestiamo solo con un log, ma potrebbe essere implementato con localStorage o API
+  // Raccogli i dati dei blocchi
+  const blocks = note.querySelectorAll('.note-block');
+  const hasContent = Array.from(blocks).some(block => {
+    const content = block.querySelector('.block-content')?.innerHTML || '';
+    return content.trim() !== '';
+  });
+  
+  if (!hasContent) {
+    console.warn(`Nota ${noteId} non ha contenuto da salvare`);
+  }
   
   // Esempio di oggetto stato che potrebbe essere salvato
   const noteState = {
@@ -3734,7 +1303,6 @@ function saveNoteState(noteId) {
   };
   
   // Raccogli i dati dei blocchi
-  const blocks = note.querySelectorAll('.note-block');
   blocks.forEach(block => {
     noteState.blocks.push({
       type: block.dataset.blockType || 'paragraph',
@@ -3743,8 +1311,8 @@ function saveNoteState(noteId) {
     });
   });
   
-  // In un'implementazione reale, qui si salverebbe l'oggetto noteState
-  // localStorage.setItem(`note_${noteId}`, JSON.stringify(noteState));
+  // Salva lo stato localmente
+  localStorage.setItem(`note_${noteId}`, JSON.stringify(noteState));
 }
 
 // Funzione di supporto per estrarre translateX dal transform
@@ -4014,4 +1582,2529 @@ function showSavingStatus() {
   setTimeout(() => {
     saveStatus.innerHTML = '<i class="fas fa-check-circle"></i> Salvato';
   }, 1000);
+}
+
+// Aggiungi la funzione per creare i connection ports sulle note
+function setupConnectionPorts(note) {
+  if (!note) return;
+  
+  // Crea i connection ports (top, right, bottom, left)
+  const positions = ['top', 'right', 'bottom', 'left'];
+  
+  positions.forEach(position => {
+    // Verifica se il connection port esiste già
+    if (note.querySelector(`.connection-port.${position}`)) return;
+    
+    const port = document.createElement('div');
+    port.className = `connection-port ${position}`;
+    port.setAttribute('data-position', position);
+    port.innerHTML = '<div class="connection-dot"></div>';
+    note.appendChild(port);
+    
+    // Aggiungi gli event listeners per il port
+    port.addEventListener('mousedown', handleConnectionStart);
+    
+    // Aggiungi tooltip al port
+    port.setAttribute('title', `Crea connessione da ${position}`);
+    
+    // Evidenzia il port quando il mouse entra
+    port.addEventListener('mouseenter', () => {
+      port.classList.add('hover');
+      
+      // Se c'è una connessione in corso, evidenzia solo i port validi
+      if (connectionStartPort && connectionStartPort !== port) {
+        const portElement = port.closest('.workspace-note, .workspace-ai-node');
+        const startElement = connectionStartPort.closest('.workspace-note, .workspace-ai-node');
+        
+        if (portElement && startElement && portElement !== startElement) {
+          port.classList.add('highlight');
+        }
+      }
+    });
+    
+    // Rimuovi l'evidenziazione quando il mouse esce
+    port.addEventListener('mouseleave', () => {
+      port.classList.remove('hover');
+      port.classList.remove('highlight');
+    });
+  });
+}
+
+// Variabili per la gestione delle connessioni
+let activeConnection = null;
+let connectionStartElement = null;
+let connectionStartPort = null;
+let connectionPath = null;
+let connections = [];
+
+// Gestisce l'inizio di una connessione
+function handleConnectionStart(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  
+  const port = e.currentTarget;
+  const element = port.closest('.workspace-note, .workspace-ai-node');
+  if (!element) return;
+  
+  // Memorizza l'elemento e la porta di origine
+  connectionStartElement = element;
+  connectionStartPort = port;
+  
+  // Crea un SVG path per la connessione
+  createConnectionPath();
+  
+  // Aggiorna la posizione iniziale del path
+  updateConnectionPathStart();
+  
+  // Aggiungi event listeners per il movimento e il rilascio
+  document.addEventListener('mousemove', handleConnectionMove);
+  document.addEventListener('mouseup', handleConnectionEnd);
+  
+  // Aggiungi classe active al port
+  port.classList.add('active');
+}
+
+// Crea un SVG path per la connessione attiva
+function createConnectionPath() {
+  // Trova il container SVG per le connessioni
+  const connectionsContainer = document.getElementById('connectionsContainer');
+  if (!connectionsContainer) {
+    console.error('Container delle connessioni non trovato');
+    return;
+  }
+  
+  // Trova o crea l'elemento SVG all'interno del container
+  let svg = connectionsContainer.querySelector('svg');
+  if (!svg) {
+    svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
+    svg.style.position = 'absolute';
+    svg.style.top = '0';
+    svg.style.left = '0';
+    svg.style.pointerEvents = 'none';
+    svg.style.zIndex = '5';
+    connectionsContainer.appendChild(svg);
+  }
+  
+  // Crea il path per la connessione
+  connectionPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  connectionPath.setAttribute('class', 'connection-path');
+  connectionPath.setAttribute('stroke', '#4a4dff');
+  connectionPath.setAttribute('stroke-width', '2');
+  connectionPath.setAttribute('fill', 'none');
+  connectionPath.style.pointerEvents = 'auto'; // Permette di interagire con il path
+  connectionPath.style.cursor = 'pointer';
+  svg.appendChild(connectionPath);
+  
+  console.log('Path di connessione creato:', connectionPath);
+  
+  // Restituisci il path appena creato
+  return connectionPath;
+}
+
+// Aggiorna la posizione iniziale del path
+function updateConnectionPathStart() {
+  if (!connectionPath || !connectionStartPort || !connectionStartElement) {
+    console.warn('updateConnectionPathStart: mancano elementi necessari');
+    return;
+  }
+  
+  // Ottieni la posizione del port rispetto al documento
+  const portRect = connectionStartPort.getBoundingClientRect();
+  
+  // Ottieni la posizione del workspace
+  const workspace = document.getElementById('workflowWorkspace');
+  if (!workspace) {
+    console.error('updateConnectionPathStart: workspace non trovato');
+    return;
+  }
+  
+  const workspaceRect = workspace.getBoundingClientRect();
+  
+  // Calcola il centro del port relativo al workspace
+  const portCenterX = portRect.left + portRect.width / 2 - workspaceRect.left;
+  const portCenterY = portRect.top + portRect.height / 2 - workspaceRect.top;
+  
+  // Converti le coordinate in coordinate del canvas, considerando sia la scala sia l'offset
+  const portCenterXCanvas = (portCenterX - canvasOffsetX) / canvasScale;
+  const portCenterYCanvas = (portCenterY - canvasOffsetY) / canvasScale;
+  
+  console.log('Punto di partenza della connessione:', {
+    x: portCenterXCanvas,
+    y: portCenterYCanvas
+  });
+  
+  // Memorizza le coordinate iniziali nel path
+  connectionPath.setAttribute('data-start-x', portCenterXCanvas);
+  connectionPath.setAttribute('data-start-y', portCenterYCanvas);
+}
+
+// Gestisce il movimento durante la creazione di una connessione
+function handleConnectionMove(e) {
+  if (!connectionPath) return;
+  
+  // Ottieni il workspace e le sue dimensioni
+  const workspace = document.getElementById('workflowWorkspace');
+  if (!workspace) return;
+  
+  const workspaceRect = workspace.getBoundingClientRect();
+  
+  // Calcola la posizione del mouse relativa al workspace
+  const mouseX = e.clientX - workspaceRect.left;
+  const mouseY = e.clientY - workspaceRect.top;
+  
+  // Converti la posizione in coordinate del canvas tenendo conto di zoom e offset
+  const mouseXInCanvas = (mouseX - canvasOffsetX) / canvasScale;
+  const mouseYInCanvas = (mouseY - canvasOffsetY) / canvasScale;
+  
+  // Ottieni le coordinate di inizio dal path
+  const startX = parseFloat(connectionPath.getAttribute('data-start-x') || 0);
+  const startY = parseFloat(connectionPath.getAttribute('data-start-y') || 0);
+  
+  // Aggiorna il path con una curva di Bezier
+  updateConnectionPath(startX, startY, mouseXInCanvas, mouseYInCanvas);
+  
+  // Evidenzia i port validi sotto il mouse
+  highlightValidPorts(e);
+}
+
+// Aggiorna il path della connessione
+function updateConnectionPath(startX, startY, endX, endY) {
+  if (!connectionPath) return;
+  
+  // Calcola i punti di controllo per la curva di Bezier
+  const position = connectionStartPort.getAttribute('data-position');
+  let controlPoint1X, controlPoint1Y, controlPoint2X, controlPoint2Y;
+  
+  // Distanza di controllo per la curva
+  const distance = Math.min(150, Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2)) * 0.5);
+  
+  // Adatta i punti di controllo in base alla posizione della porta di origine
+  switch (position) {
+    case 'top':
+      controlPoint1X = startX;
+      controlPoint1Y = startY - distance;
+      controlPoint2X = endX;
+      controlPoint2Y = endY + distance;
+      break;
+    case 'right':
+      controlPoint1X = startX + distance;
+      controlPoint1Y = startY;
+      controlPoint2X = endX - distance;
+      controlPoint2Y = endY;
+      break;
+    case 'bottom':
+      controlPoint1X = startX;
+      controlPoint1Y = startY + distance;
+      controlPoint2X = endX;
+      controlPoint2Y = endY - distance;
+      break;
+    case 'left':
+      controlPoint1X = startX - distance;
+      controlPoint1Y = startY;
+      controlPoint2X = endX + distance;
+      controlPoint2Y = endY;
+      break;
+    default:
+      controlPoint1X = startX;
+      controlPoint1Y = startY;
+      controlPoint2X = endX;
+      controlPoint2Y = endY;
+  }
+  
+  // Crea il path
+  const d = `M ${startX} ${startY} C ${controlPoint1X} ${controlPoint1Y}, ${controlPoint2X} ${controlPoint2Y}, ${endX} ${endY}`;
+  connectionPath.setAttribute('d', d);
+}
+
+// Miglioro la funzione highlightValidPorts per evidenziare meglio i port disponibili
+function highlightValidPorts(e) {
+  // Rimuovi highlight da tutti i port
+  document.querySelectorAll('.connection-port.highlight').forEach(port => {
+    port.classList.remove('highlight');
+  });
+  
+  // Trova l'elemento sotto il mouse
+  const elementsAtPoint = document.elementsFromPoint(e.clientX, e.clientY);
+  const portElement = elementsAtPoint.find(el => el.classList && el.classList.contains('connection-port') || 
+                                                el.parentElement && el.parentElement.classList && 
+                                                el.parentElement.classList.contains('connection-port'));
+  
+  if (!portElement) return;
+  
+  // Trova il port (potrebbe essere il dot all'interno del port)
+  const port = portElement.classList.contains('connection-port') ? 
+              portElement : 
+              portElement.parentElement;
+  
+  if (!port) return;
+  
+  // Verifica che non sia lo stesso port di partenza
+  if (port === connectionStartPort) return;
+  
+  // Verifica che appartenga a un elemento diverso
+  const element = port.closest('.workspace-note, .workspace-ai-node');
+  if (!element || element === connectionStartElement) return;
+  
+  // Evidenzia il port valido
+  port.classList.add('highlight');
+}
+
+// Gestisce il rilascio del mouse durante la creazione di una connessione
+function handleConnectionEnd(e) {
+  // Rimuovi gli event listeners
+  document.removeEventListener('mousemove', handleConnectionMove);
+  document.removeEventListener('mouseup', handleConnectionEnd);
+  
+  // Rimuovi la classe active dal port di partenza
+  if (connectionStartPort) {
+    connectionStartPort.classList.remove('active');
+  }
+  
+  // Verifica se il rilascio è avvenuto su un port valido
+  const elementsAtPoint = document.elementsFromPoint(e.clientX, e.clientY);
+  
+  console.log('Elementi sotto il punto di rilascio:', elementsAtPoint.map(el => el.tagName + (el.id ? '#' + el.id : '') + (el.className ? '.' + el.className : '')));
+  
+  const portElement = elementsAtPoint.find(el => el.classList && (
+    el.classList.contains('connection-port') || 
+    (el.parentElement && el.parentElement.classList && el.parentElement.classList.contains('connection-port'))
+  ));
+  
+  if (portElement) {
+    console.log('Port element trovato:', portElement);
+    
+    const endPort = portElement.classList.contains('connection-port') ? 
+                    portElement : 
+                    portElement.parentElement;
+    
+    console.log('End port:', endPort);
+    
+    if (endPort && endPort !== connectionStartPort) {
+      const endElement = endPort.closest('.workspace-note, .workspace-ai-node');
+      
+      console.log('End element:', endElement);
+      
+      if (endElement && endElement !== connectionStartElement) {
+        console.log('Creando connessione tra:', connectionStartElement.id, 'e', endElement.id);
+        // Crea una connessione permanente
+        const newConnection = createPermanentConnection(connectionStartElement, connectionStartPort, endElement, endPort);
+        
+        if (newConnection) {
+          console.log('Connessione creata con successo:', newConnection.id);
+        } else {
+          console.error('Errore nella creazione della connessione');
+          // Se la creazione fallisce ma abbiamo un path temporaneo, rimuoviamolo
+          if (connectionPath) {
+            connectionPath.remove();
+          }
+        }
+        
+        // Non rimuovere il path, verrà utilizzato per la connessione permanente
+        connectionPath = null;
+        connectionStartElement = null;
+        connectionStartPort = null;
+        return;
+      } else {
+        console.log('End element non valido o uguale a start element');
+      }
+    } else {
+      console.log('End port non valido o uguale a start port');
+    }
+  } else {
+    console.log('Nessun port element trovato sotto il punto di rilascio');
+  }
+  
+  // Se arriviamo qui, il rilascio non è avvenuto su un port valido
+  console.log('Rilascio non valido, rimuovo il path temporaneo');
+  // Rimuovi il path temporaneo
+  if (connectionPath) {
+    connectionPath.remove();
+    connectionPath = null;
+  }
+  
+  // Reset delle variabili
+  connectionStartElement = null;
+  connectionStartPort = null;
+}
+
+// Miglioro la funzione createPermanentConnection per assicurare connessioni multiple
+function createPermanentConnection(startElement, startPort, endElement, endPort) {
+  // Aggiungiamo controlli più robusti
+  if (!startElement || !startPort || !endElement || !endPort) {
+    console.error('createPermanentConnection: parametri mancanti', { 
+      startElement: !!startElement, 
+      startPort: !!startPort, 
+      endElement: !!endElement, 
+      endPort: !!endPort 
+    });
+    return null;
+  }
+  
+  // Controlla se esiste già una connessione tra questi due punti
+  const existingConnection = connections.find(conn => 
+    (conn.startElementId === startElement.id && conn.startPortPosition === startPort.getAttribute('data-position') &&
+     conn.endElementId === endElement.id && conn.endPortPosition === endPort.getAttribute('data-position')) ||
+    (conn.startElementId === endElement.id && conn.startPortPosition === endPort.getAttribute('data-position') &&
+     conn.endElementId === startElement.id && conn.endPortPosition === startPort.getAttribute('data-position'))
+  );
+
+  // Se esiste già una connessione identica, non ne creare un'altra
+  if (existingConnection) {
+    console.log('Connessione già esistente, annullo creazione');
+    // Annulla la creazione e rimuovi il path temporaneo
+    if (connectionPath) {
+      connectionPath.remove();
+      connectionPath = null;
+    }
+    return null;
+  }
+  
+  console.log('Creazione connessione permanente tra:', 
+    startElement.id, startPort.getAttribute('data-position'),
+    'e', 
+    endElement.id, endPort.getAttribute('data-position')
+  );
+  
+  // Trova o crea il container SVG per le connessioni
+  const connectionsContainer = document.getElementById('connectionsContainer');
+  if (!connectionsContainer) {
+    console.error('Container delle connessioni non trovato');
+    return null;
+  }
+  
+  // Trova o crea l'elemento SVG all'interno del container
+  let svg = connectionsContainer.querySelector('svg');
+  if (!svg) {
+    svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
+    svg.style.position = 'absolute';
+    svg.style.top = '0';
+    svg.style.left = '0';
+    svg.style.pointerEvents = 'none';
+    svg.style.zIndex = '5';
+    connectionsContainer.appendChild(svg);
+  }
+  
+  // Se non abbiamo un path temporaneo, crea un nuovo path
+  if (!connectionPath) {
+    connectionPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    connectionPath.setAttribute('stroke', '#4a4dff');
+    connectionPath.setAttribute('stroke-width', '2');
+    connectionPath.setAttribute('fill', 'none');
+    connectionPath.style.pointerEvents = 'auto';
+    connectionPath.style.cursor = 'pointer';
+    svg.appendChild(connectionPath);
+  } else {
+    // Assicurati che il path sia figlio dell'SVG corretto
+    if (connectionPath.parentElement !== svg) {
+      svg.appendChild(connectionPath);
+    }
+  }
+  
+  // Crea un ID univoco per la connessione che include anche gli ID degli elementi
+  const connectionId = `connection-${startElement.id}-${startPort.getAttribute('data-position')}-${endElement.id}-${endPort.getAttribute('data-position')}-${Date.now()}`;
+  
+  // Crea un oggetto per rappresentare la connessione
+  const connection = {
+    id: connectionId,
+    startElementId: startElement.id,
+    startPortPosition: startPort.getAttribute('data-position'),
+    endElementId: endElement.id,
+    endPortPosition: endPort.getAttribute('data-position'),
+    path: connectionPath
+  };
+  
+  // Aggiungi attributi al path per identificare la connessione
+  connectionPath.setAttribute('id', connection.id);
+  connectionPath.setAttribute('data-start-element', connection.startElementId);
+  connectionPath.setAttribute('data-start-port', connection.startPortPosition);
+  connectionPath.setAttribute('data-end-element', connection.endElementId);
+  connectionPath.setAttribute('data-end-port', connection.endPortPosition);
+  connectionPath.setAttribute('class', 'connection-path');
+  
+  // Aggiungi interattività al path
+  connectionPath.style.pointerEvents = 'auto';
+  connectionPath.style.cursor = 'pointer';
+  
+  // Aggiungi event listener per eliminare la connessione con doppio click
+  connectionPath.addEventListener('dblclick', (e) => {
+    e.stopPropagation(); // Previene che l'evento si propaghi
+    deleteConnection(connection.id);
+  });
+  
+  // Aggiungi tooltip alla connessione
+  connectionPath.setAttribute('title', 'Doppio click per eliminare la connessione');
+  
+  // Aggiungi la connessione all'array
+  connections.push(connection);
+  
+  // Forza aggiornamento della posizione della connessione per evitare che scompaia
+  try {
+    // Aggiorna subito la posizione della connessione
+  updateConnectionPosition(connection);
+    
+    // Per sicurezza, aggiorna nuovamente dopo un breve ritardo
+    setTimeout(() => {
+      if (connections.includes(connection)) {
+        updateConnectionPosition(connection);
+      }
+    }, 100);
+    
+    // E ancora dopo un altro ritardo per assicurarsi che sia stabile
+    setTimeout(() => {
+      if (connections.includes(connection)) {
+        updateConnectionPosition(connection);
+      }
+    }, 500);
+  } catch (error) {
+    console.error('Errore durante l\'aggiornamento iniziale della connessione:', error);
+    // Non eliminiamo la connessione in caso di errore
+  }
+  
+  console.log(`Creata connessione ${connection.id} da ${connection.startElementId} (${connection.startPortPosition}) a ${connection.endElementId} (${connection.endPortPosition})`);
+  
+  return connection;
+}
+
+// Elimina una connessione
+function deleteConnection(connectionId) {
+  // Trova la connessione da eliminare
+  const connectionIndex = connections.findIndex(conn => conn.id === connectionId);
+  
+  if (connectionIndex >= 0) {
+    const connection = connections[connectionIndex];
+    
+    // Rimuovi il path SVG dal DOM
+    if (connection.path) {
+      connection.path.remove();
+    }
+    
+    // Rimuovi la connessione dall'array
+    connections.splice(connectionIndex, 1);
+    
+    console.log(`Connessione ${connectionId} eliminata. Connessioni rimanenti: ${connections.length}`);
+    
+    // Aggiorna tutte le altre connessioni
+    updateAllConnections();
+    
+    return true;
+  }
+  
+  return false;
+}
+
+// Aggiorna la posizione di una connessione esistente
+function updateConnectionPosition(connection) {
+  if (!connection || !connection.path) {
+    console.warn('updateConnectionPosition: connessione non valida o path mancante');
+    return;
+  }
+  
+  // Trova gli elementi e i port
+  const startElement = document.getElementById(connection.startElementId);
+  const endElement = document.getElementById(connection.endElementId);
+  
+  if (!startElement || !endElement) {
+    // Se uno degli elementi non esiste più, elimina la connessione
+    console.warn(`Elemento non trovato per la connessione ${connection.id}, eliminazione in corso`);
+    deleteConnection(connection.id);
+    return;
+  }
+  
+  const startPort = startElement.querySelector(`.connection-port[data-position="${connection.startPortPosition}"]`);
+  const endPort = endElement.querySelector(`.connection-port[data-position="${connection.endPortPosition}"]`);
+  
+  if (!startPort || !endPort) {
+    // Se uno dei port non esiste più, elimina la connessione
+    console.warn(`Porta non trovata per la connessione ${connection.id}, eliminazione in corso`);
+    deleteConnection(connection.id);
+    return;
+  }
+  
+  try {
+    // Ottieni le coordinate dei port nel sistema di coordinate del documento
+    const startPortRect = startPort.getBoundingClientRect();
+    const endPortRect = endPort.getBoundingClientRect();
+  
+  const workspace = document.getElementById('workflowWorkspace');
+    if (!workspace) {
+      console.error('Workspace non trovato per l\'aggiornamento della connessione');
+      return;
+    }
+  
+  const workspaceRect = workspace.getBoundingClientRect();
+    
+    // Calcola il centro dei port nel sistema di coordinate del viewport
+    const startXInDocument = startPortRect.left + startPortRect.width / 2;
+    const startYInDocument = startPortRect.top + startPortRect.height / 2;
+    const endXInDocument = endPortRect.left + endPortRect.width / 2;
+    const endYInDocument = endPortRect.top + endPortRect.height / 2;
+    
+    // Calcola la posizione relativa al workspace
+    const startXRelativeToWorkspace = startXInDocument - workspaceRect.left;
+    const startYRelativeToWorkspace = startYInDocument - workspaceRect.top;
+    const endXRelativeToWorkspace = endXInDocument - workspaceRect.left;
+    const endYRelativeToWorkspace = endYInDocument - workspaceRect.top;
+    
+    // Converti in coordinate del canvas considerando sia la scala sia l'offset
+    const startX = (startXRelativeToWorkspace - canvasOffsetX) / canvasScale;
+    const startY = (startYRelativeToWorkspace - canvasOffsetY) / canvasScale;
+    const endX = (endXRelativeToWorkspace - canvasOffsetX) / canvasScale;
+    const endY = (endYRelativeToWorkspace - canvasOffsetY) / canvasScale;
+    
+    // Calcola i punti di controllo per la curva di Bezier
+  // Distanza di controllo per la curva
+  const distance = Math.min(150, Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2)) * 0.5);
+  
+  let controlPoint1X, controlPoint1Y, controlPoint2X, controlPoint2Y;
+  
+  // Adatta i punti di controllo in base alla posizione della porta di origine
+  switch (connection.startPortPosition) {
+    case 'top':
+      controlPoint1X = startX;
+      controlPoint1Y = startY - distance;
+      break;
+    case 'right':
+      controlPoint1X = startX + distance;
+      controlPoint1Y = startY;
+      break;
+    case 'bottom':
+      controlPoint1X = startX;
+      controlPoint1Y = startY + distance;
+      break;
+    case 'left':
+      controlPoint1X = startX - distance;
+      controlPoint1Y = startY;
+      break;
+    default:
+      controlPoint1X = startX;
+      controlPoint1Y = startY;
+  }
+  
+  // Adatta i punti di controllo in base alla posizione della porta di destinazione
+  switch (connection.endPortPosition) {
+    case 'top':
+      controlPoint2X = endX;
+      controlPoint2Y = endY - distance;
+      break;
+    case 'right':
+      controlPoint2X = endX + distance;
+      controlPoint2Y = endY;
+      break;
+    case 'bottom':
+      controlPoint2X = endX;
+      controlPoint2Y = endY + distance;
+      break;
+    case 'left':
+      controlPoint2X = endX - distance;
+      controlPoint2Y = endY;
+      break;
+    default:
+      controlPoint2X = endX;
+      controlPoint2Y = endY;
+  }
+  
+  // Crea il path
+  const d = `M ${startX} ${startY} C ${controlPoint1X} ${controlPoint1Y}, ${controlPoint2X} ${controlPoint2Y}, ${endX} ${endY}`;
+    connection.path.setAttribute('d', d);
+    
+    // Salvare le coordinate per il riutilizzo
+    connection.path.setAttribute('data-start-x', startX);
+    connection.path.setAttribute('data-start-y', startY);
+    connection.path.setAttribute('data-end-x', endX);
+    connection.path.setAttribute('data-end-y', endY);
+    
+  } catch (error) {
+    console.error('Errore durante l\'aggiornamento della connessione:', error);
+    // Non eliminiamo la connessione in caso di errore, per evitare che scompaia subito
+  }
+}
+
+// Miglioro la funzione updateAllConnections per garantire aggiornamenti corretti
+function updateAllConnections() {
+  // Prima, controlla se ci sono connessioni da aggiornare
+  if (!connections || connections.length === 0) {
+    return;
+  }
+  
+  console.log('DEBUG CONNECTIONS: Aggiornamento di tutte le connessioni, numero:', connections.length);
+  
+  // Per ogni connessione, aggiorna la sua posizione
+  for (let i = 0; i < connections.length; i++) {
+    try {
+      const connection = connections[i];
+      
+      // Verifica se la connessione è valida
+      if (!connection || !connection.path) {
+        console.warn(`Connessione ${i} non valida o senza path, saltando...`);
+        continue;
+      }
+      
+      // Verifica se gli elementi esistono ancora
+      const startElement = document.getElementById(connection.startElementId);
+      const endElement = document.getElementById(connection.endElementId);
+      
+      if (!startElement || !endElement) {
+        console.warn(`Elementi non trovati per la connessione ${connection.id}, potrebbe essere una connessione nuova, tentiamo di conservarla`);
+        // Non eliminiamo subito le connessioni, potrebbero essere nuove connessioni che non hanno ancora completato l'inizializzazione
+        // Eliminiamo solo se entrambi gli elementi sono assenti
+        if (!startElement && !endElement) {
+          connections.splice(i, 1);
+          i--; // Decrementa l'indice perché abbiamo rimosso un elemento
+    if (connection.path) {
+      connection.path.remove();
+          }
+        }
+        continue;
+      }
+      
+      // Aggiorna la posizione usando il nostro metodo migliorato
+      updateConnectionPosition(connection);
+    } catch (error) {
+      console.error(`Errore nell'aggiornamento della connessione ${i}:`, error);
+      // Non eliminiamo la connessione in caso di errore, per evitare che scompaia subito
+      // Commentiamo questa parte per prevenire l'eliminazione prematura
+      /*
+      if (connections[i] && connections[i].id) {
+        deleteConnection(connections[i].id);
+        i--; // Decrementa l'indice perché l'array è stato modificato
+      }
+      */
+    }
+  }
+  
+  console.log('DEBUG CONNECTIONS: Aggiornamento connessioni completato');
+}
+
+// Configura le interazioni per il workspace
+function setupWorkflowInteractions(workspace) {
+  if (!workspace) {
+    console.error('setupWorkflowInteractions: workspace non trovato');
+    return;
+  }
+  
+  console.log('Configurazione delle interazioni per il workspace', workspace.id);
+  
+  // Rimuovi eventuali listener precedenti per evitare duplicazioni
+  workspace.removeEventListener('wheel', handleMouseWheel);
+  
+  // Aggiungi event listener per lo zoom con la rotella del mouse
+  // Usiamo 'false' per passive per poter chiamare preventDefault()
+  workspace.addEventListener('wheel', handleMouseWheel, { passive: false });
+  console.log('Event listener per wheel aggiunto al workspace');
+  
+  // Aggiungiamo anche un listener diretto per lo zoom (alternativa)
+  workspace.onwheel = function(e) {
+    console.log('DEBUG ONWHEEL: Evento onwheel rilevato direttamente');
+    // Deleghiamo la gestione alla funzione principale
+    handleMouseWheel(e);
+  };
+  
+  // Aggiungiamo un ulteriore controllo per il DOMMouseScroll (per Firefox più vecchi)
+  workspace.addEventListener('DOMMouseScroll', function(e) {
+    console.log('DEBUG DOMMOUSESCROLL: Evento DOMMouseScroll rilevato');
+    // Convertiamo l'evento in un formato compatibile con handleMouseWheel
+    const wheelEvent = {
+      preventDefault: e.preventDefault.bind(e),
+      stopPropagation: e.stopPropagation.bind(e),
+      clientX: e.clientX,
+      clientY: e.clientY,
+      deltaY: e.detail * 40, // Simuliamo deltaY da detail
+      target: e.target
+    };
+    handleMouseWheel(wheelEvent);
+  }, { passive: false });
+  
+  // Event listener per il click sul workspace (deseleziona le note)
+  workspace.addEventListener('click', handleWorkspaceClick);
+  
+  // Event listener per il doppio click sul workspace (crea una nuova nota)
+  workspace.addEventListener('dblclick', function(e) {
+    // Ignora il dblclick se è su una nota esistente
+    if (e.target.closest('.workspace-note')) return;
+    
+    // Calcola la posizione in base alle coordinate del mouse
+    const rect = workspace.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    // Converti le coordinate del mouse nel sistema di coordinate del canvas
+    const canvasX = Math.round((mouseX - canvasOffsetX) / canvasScale);
+    const canvasY = Math.round((mouseY - canvasOffsetY) / canvasScale);
+    
+    // Crea una nuova nota alla posizione calcolata
+    createNewNote(canvasX, canvasY);
+  });
+  
+  // Implementazione diretta del panning sul workspace
+  workspace.addEventListener('mousedown', function(e) {
+    // Ignora il click su elementi specifici o se non è il tasto sinistro
+    if (e.button !== 0 || 
+        e.target.closest('.workspace-note, .note-block, .toolbar-btn, .connection-port, .workflow-minimap, .workflow-minimap-viewport, .note-header, .note-content')) {
+      return;
+    }
+    
+    console.log('Inizio panning canvas con mousedown diretto');
+    
+    // Previeni comportamento di default e propagazione
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Abilita il panning
+    isDraggingCanvas = true;
+    workspace.classList.add('panning');
+    
+    // Memorizza il punto di partenza
+    canvasDragStartX = e.clientX;
+    canvasDragStartY = e.clientY;
+    initialCanvasOffsetX = canvasOffsetX;
+    initialCanvasOffsetY = canvasOffsetY;
+    
+    // Mostra l'indicatore di posizione
+    const positionIndicator = document.getElementById('positionIndicator');
+    if (positionIndicator) {
+      positionIndicator.classList.add('visible');
+    }
+    
+    // Aggiungi event listeners temporanei per panning
+    document.addEventListener('mousemove', handleCanvasMouseMove);
+    document.addEventListener('mouseup', handleCanvasMouseUp);
+  });
+  
+  // Event listener per il ridimensionamento delle note
+  workspace.addEventListener('mousedown', function(e) {
+    // Verifica se il click è su una maniglia di ridimensionamento
+    const resizeHandle = e.target.closest('.note-resize-handle, .resize-handle');
+    if (resizeHandle) {
+      const note = resizeHandle.closest('.workspace-note');
+      if (note) {
+        handleNoteResizeStart(e);
+      }
+    }
+  });
+  
+  // Event listener per il trascinamento delle note
+  workspace.addEventListener('mousedown', function(e) {
+    // Verifica se il click è sull'intestazione di una nota
+    const noteHeader = e.target.closest('.note-header');
+    if (noteHeader) {
+      const note = noteHeader.closest('.workspace-note');
+      if (note) {
+        // Evita che il panning del canvas si attivi
+        e.stopPropagation();
+        handleNoteMouseDown(e, note);
+      }
+    }
+  });
+  
+  // Variabili per tenere traccia dello stato dello spazio
+  let isSpacePressed = false;
+  let tempPanningEnabled = false;
+  
+  // Event listener per attivare il panning quando viene premuto Spazio
+  document.addEventListener('keydown', function(e) {
+    // Panning con Spazio (convenzione comune)
+    if (e.code === 'Space' && !isSpacePressed) {
+      isSpacePressed = true;
+      
+      // Previeni lo scroll della pagina
+      e.preventDefault();
+      
+      // Cambia il cursore per indicare che il panning è disponibile
+      workspace.classList.add('panning-ready');
+      document.body.style.cursor = 'grab';
+      
+      // Abilita temporaneamente il panning
+      tempPanningEnabled = true;
+      
+      console.log('Spazio premuto - panning temporaneo attivato');
+      
+      // Aggiungi un listener temporaneo per mousedown
+      const tempMouseDownHandler = function(mouseEvent) {
+        if (mouseEvent.button === 0 && isSpacePressed) { // Solo tasto sinistro e se lo spazio è ancora premuto
+          mouseEvent.preventDefault();
+          mouseEvent.stopPropagation();
+          
+          // Cambia il cursore durante il trascinamento
+          document.body.style.cursor = 'grabbing';
+          workspace.classList.add('panning');
+          
+          // Inizializza il panning
+          isDraggingCanvas = true;
+          canvasDragStartX = mouseEvent.clientX;
+          canvasDragStartY = mouseEvent.clientY;
+          initialCanvasOffsetX = canvasOffsetX;
+          initialCanvasOffsetY = canvasOffsetY;
+          
+          // Mostra l'indicatore di posizione
+          const positionIndicator = document.getElementById('positionIndicator');
+          if (positionIndicator) {
+            positionIndicator.classList.add('visible');
+          }
+          
+          // Gestisci il rilascio del mouse
+          const tempMouseUpHandler = function() {
+            isDraggingCanvas = false;
+            workspace.classList.remove('panning');
+            document.body.style.cursor = 'grab'; // Torna a grab quando si rilascia il mouse
+            
+            // Rimuovi i listener temporanei di movimento e rilascio
+            document.removeEventListener('mousemove', handleCanvasMouseMove);
+            document.removeEventListener('mouseup', tempMouseUpHandler);
+            
+            // Aggiorna le connessioni dopo aver completato il panning
+            updateAllConnections();
+            
+            // Nascondi l'indicatore di posizione
+            setTimeout(() => {
+              const positionIndicator = document.getElementById('positionIndicator');
+              if (positionIndicator) {
+                positionIndicator.classList.remove('visible');
+              }
+            }, 1000);
+          };
+          
+          // Aggiungi i listener temporanei
+          document.addEventListener('mousemove', handleCanvasMouseMove);
+          document.addEventListener('mouseup', tempMouseUpHandler);
+        }
+      };
+      
+      // Aggiungi il listener temporaneo
+      document.addEventListener('mousedown', tempMouseDownHandler);
+      
+      // Rimuovi il listener quando si rilascia lo spazio
+      const tempKeyUpHandler = function(keyEvent) {
+        if (keyEvent.code === 'Space') {
+          isSpacePressed = false;
+          tempPanningEnabled = false;
+          
+          // Ripristina il cursore
+          workspace.classList.remove('panning-ready');
+          document.body.style.cursor = '';
+          
+          // Rimuovi i listener temporanei
+          document.removeEventListener('mousedown', tempMouseDownHandler);
+          document.removeEventListener('keyup', tempKeyUpHandler);
+          
+          console.log('Spazio rilasciato - panning temporaneo disattivato');
+        }
+      };
+      
+      document.addEventListener('keyup', tempKeyUpHandler);
+    }
+    
+    // Alt per il panning alternativo (mantenuto per retrocompatibilità)
+    if (e.key === 'Alt') {
+      e.preventDefault();
+      workspace.classList.add('panning-ready');
+      console.log('Alt premuto - panning-ready attivato');
+      
+      // Memorizza gli event handlers originali
+      if (!window.originalMouseDown) {
+        window.originalMouseDown = workspace.onmousedown;
+      }
+      
+      // Sostituisci l'event handler per il mousedown per consentire il panning ovunque
+      workspace.onmousedown = function(e) {
+        if (e.button === 0) { // Solo tasto sinistro
+          console.log('mousedown con Alt premuto');
+          e.stopPropagation();
+          e.preventDefault();
+          
+          // Avvia il panning direttamente
+          isDraggingCanvas = true;
+          canvasDragStartX = e.clientX;
+          canvasDragStartY = e.clientY;
+          initialCanvasOffsetX = canvasOffsetX;
+          initialCanvasOffsetY = canvasOffsetY;
+          
+          // Cambia il cursore
+          workspace.classList.add('panning');
+          
+          // Mostra l'indicatore di posizione
+          const positionIndicator = document.getElementById('positionIndicator');
+          if (positionIndicator) {
+            positionIndicator.classList.add('visible');
+          }
+          
+          // Aggiungi gli event listener per il movimento e il rilascio
+          document.addEventListener('mousemove', handleCanvasMouseMove);
+          document.addEventListener('mouseup', handleCanvasMouseUp);
+        }
+      };
+    }
+  });
+  
+  // Event listener per disattivare il panning quando Alt viene rilasciato
+  document.addEventListener('keyup', function(e) {
+    if (e.key === 'Alt') {
+      workspace.classList.remove('panning-ready');
+      console.log('Alt rilasciato - panning-ready disattivato');
+      
+      // Ripristina l'event handler originale
+      if (window.originalMouseDown) {
+        workspace.onmousedown = window.originalMouseDown;
+        window.originalMouseDown = null;
+      }
+    }
+  });
+  
+  // Assicuriamoci che gli altri event listener globali siano attivi
+  document.addEventListener('mousemove', handleNoteMouseMove);
+  document.addEventListener('mouseup', handleNoteMouseUp);
+}
+
+// Inizio il panning del canvas
+function handleCanvasMouseDown(e) {
+  console.log('handleCanvasMouseDown chiamato', e.target.id, e.target.className);
+  
+  // Ignora se il click è su un elemento specifico o se non è il tasto sinistro
+  if (e.button !== 0 || 
+      e.target.closest('.workspace-note, .note-block, .toolbar-btn, .connection-port, .workflow-minimap, .workflow-minimap-viewport, .note-header, .note-content')) {
+    console.log('Click ignorato perché su elemento specifico o non tasto sinistro');
+    return;
+  }
+  
+  // Previeni comportamento di default e propagazione
+  e.preventDefault();
+  e.stopPropagation();
+  
+  // Imposta il cursore appropriato
+  const workspace = document.getElementById('workflowWorkspace');
+  if (workspace) {
+    workspace.classList.add('panning');
+    console.log('Classe panning aggiunta al workspace');
+  }
+  
+  // Memorizza il punto di partenza
+  isDraggingCanvas = true;
+  canvasDragStartX = e.clientX;
+  canvasDragStartY = e.clientY;
+  
+  // Memorizza l'offset iniziale per un calcolo più fluido
+  initialCanvasOffsetX = canvasOffsetX;
+  initialCanvasOffsetY = canvasOffsetY;
+  
+  console.log('Panning iniziato:', {
+    isDraggingCanvas,
+    canvasDragStartX,
+    canvasDragStartY,
+    initialCanvasOffsetX,
+    initialCanvasOffsetY
+  });
+  
+  // Aggiunge gli event listener per il movimento e il rilascio
+  document.addEventListener('mousemove', handleCanvasMouseMove);
+  document.addEventListener('mouseup', handleCanvasMouseUp);
+  
+  // Mostra l'indicatore di posizione durante il panning
+  const positionIndicator = document.getElementById('positionIndicator');
+  if (positionIndicator) {
+    positionIndicator.classList.add('visible');
+  }
+}
+
+// Gestisce il movimento durante il panning del canvas
+function handleCanvasMouseMove(e) {
+  if (!isDraggingCanvas) {
+    return;
+  }
+  
+  // Calcola lo spostamento
+  const deltaX = e.clientX - canvasDragStartX;
+  const deltaY = e.clientY - canvasDragStartY;
+  
+  // Aggiorna l'offset del canvas usando gli offset iniziali per un movimento più preciso
+  canvasOffsetX = initialCanvasOffsetX + deltaX;
+  canvasOffsetY = initialCanvasOffsetY + deltaY;
+  
+  // Applica la trasformazione direttamente per un movimento più fluido
+  const workspaceContent = document.getElementById('workflowContent');
+  if (workspaceContent) {
+    workspaceContent.style.transform = `translate(${canvasOffsetX}px, ${canvasOffsetY}px) scale(${canvasScale})`;
+    
+    // Aggiorna l'indicatore di posizione
+    updatePositionIndicator();
+    
+    // Aggiorna IMMEDIATAMENTE le connessioni con ogni movimento del canvas
+    // Il debounce è stato rimosso per garantire che le connessioni seguano in tempo reale
+    updateAllConnections();
+  }
+  
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+// Gestisce il rilascio del mouse durante il panning del canvas
+function handleCanvasMouseUp(e) {
+  if (e.button !== 0) return; // Solo click sinistro
+  
+  if (!isDraggingCanvas) return; // Esci se non stiamo trascinando
+  
+  console.log('Fine panning canvas');
+  
+  // Reset dello stato di trascinamento
+  isDraggingCanvas = false;
+  
+  // Rimuovi gli event listener per il movimento e il rilascio
+  document.removeEventListener('mousemove', handleCanvasMouseMove);
+  document.removeEventListener('mouseup', handleCanvasMouseUp);
+  
+  // Reimposta il cursore
+  const workspace = document.getElementById('workflowWorkspace');
+  if (workspace) {
+    workspace.classList.remove('panning');
+  }
+  
+  // Applica la trasformazione finale
+  updateCanvasTransform();
+  
+  // Aggiorna tutte le connessioni se ci sono
+  if (connections && connections.length > 0) {
+    updateAllConnections();
+  }
+  
+  // Nascondi l'indicatore di posizione dopo un breve ritardo
+  setTimeout(() => {
+    const positionIndicator = document.getElementById('positionIndicator');
+    if (positionIndicator) {
+      positionIndicator.classList.remove('visible');
+    }
+  }, 1000);
+}
+
+// Aggiorna l'indicatore di posizione
+function updatePositionIndicator() {
+  const positionIndicator = document.getElementById('positionIndicator');
+  if (!positionIndicator) return;
+  
+  // Calcola il centro del viewport nelle coordinate del canvas
+  const workspace = document.getElementById('workflowWorkspace');
+  if (workspace) {
+    const viewportWidth = workspace.clientWidth;
+    const viewportHeight = workspace.clientHeight;
+    
+    // Calcola il centro della viewport nelle coordinate del canvas
+    const centerX = Math.round((-canvasOffsetX + viewportWidth / 2) / canvasScale);
+    const centerY = Math.round((-canvasOffsetY + viewportHeight / 2) / canvasScale);
+    
+    // Aggiorna il testo dell'indicatore
+    positionIndicator.textContent = `Centro: ${centerX}, ${centerY} | Zoom: ${Math.round(canvasScale * 100)}%`;
+  }
+}
+
+// Funzione di debug e correzione per il panning
+function debugAndFixWorkflowPanning() {
+  console.log('Esecuzione della funzione di debug e correzione del panning');
+  
+  const workspace = document.getElementById('workflowWorkspace');
+  const workspaceContent = document.getElementById('workflowContent');
+  
+  if (!workspace || !workspaceContent) {
+    console.error('DEBUG: Impossibile trovare workspace o workspaceContent');
+    return;
+  }
+  
+  console.log('DEBUG: workspace e workspaceContent trovati');
+  console.log('DEBUG: workspace ID:', workspace.id);
+  console.log('DEBUG: workspace classList:', workspace.className);
+  console.log('DEBUG: workspaceContent ID:', workspaceContent.id);
+  
+  // Impostazioni di stile dirette
+  workspace.style.cursor = 'grab';
+  workspace.style.touchAction = 'none';
+  workspace.style.overflow = 'hidden';
+  
+  workspaceContent.style.position = 'absolute';
+  workspaceContent.style.top = '0';
+  workspaceContent.style.left = '0';
+  workspaceContent.style.width = '10000px';
+  workspaceContent.style.height = '10000px';
+  workspaceContent.style.transformOrigin = '0 0';
+  workspaceContent.style.willChange = 'transform';
+  
+  // Aggiunta di event listener diretti
+  console.log('DEBUG: Aggiunta eventi diretti per il panning sul workspace');
+  
+  // Rimuovo eventuali event listener esistenti per evitare duplicazioni
+  workspace.removeEventListener('mousedown', directPanningHandler);
+  
+  // Funzione di gestione panning diretto
+  function directPanningHandler(e) {
+    // Ignora se il click è su un elemento specifico o se non è il tasto sinistro
+    if (e.button !== 0 || e.target.closest('.workspace-note, .note-block, .toolbar-btn, .connection-port, .workflow-minimap, .workflow-minimap-viewport')) {
+      return;
+    }
+    
+    console.log('DEBUG: Inizio panning diretto da directPanningHandler');
+    
+    // Imposta il cursore appropriato
+    workspace.style.cursor = 'grabbing';
+    
+    // Memorizza il punto di partenza
+    isDraggingCanvas = true;
+    canvasDragStartX = e.clientX;
+    canvasDragStartY = e.clientY;
+    initialCanvasOffsetX = canvasOffsetX;
+    initialCanvasOffsetY = canvasOffsetY;
+    
+    // Funzione per gestire il movimento durante il panning
+    function directMoveHandler(moveEvent) {
+      if (!isDraggingCanvas) return;
+      
+      console.log('DEBUG: Movimento durante panning diretto');
+      
+      // Calcola lo spostamento
+      const deltaX = moveEvent.clientX - canvasDragStartX;
+      const deltaY = moveEvent.clientY - canvasDragStartY;
+      
+      // Aggiorna l'offset del canvas
+      canvasOffsetX = initialCanvasOffsetX + deltaX;
+      canvasOffsetY = initialCanvasOffsetY + deltaY;
+      
+      // Applica direttamente la trasformazione
+      workspaceContent.style.transform = `translate(${canvasOffsetX}px, ${canvasOffsetY}px) scale(${canvasScale})`;
+      
+      moveEvent.preventDefault();
+      moveEvent.stopPropagation();
+    }
+    
+    // Funzione per gestire il rilascio del mouse
+    function directUpHandler(upEvent) {
+      console.log('DEBUG: Fine panning diretto');
+      
+      isDraggingCanvas = false;
+      workspace.style.cursor = 'grab';
+      
+      // Rimuovi i listener temporanei
+      document.removeEventListener('mousemove', directMoveHandler);
+      document.removeEventListener('mouseup', directUpHandler);
+      
+      upEvent.preventDefault();
+      upEvent.stopPropagation();
+    }
+    
+    // Aggiungi i listener temporanei
+    document.addEventListener('mousemove', directMoveHandler);
+    document.addEventListener('mouseup', directUpHandler);
+    
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  
+  // Aggiungo l'handler diretto per il panning
+  workspace.addEventListener('mousedown', directPanningHandler);
+  
+  console.log('DEBUG: Handler per il panning installato con successo');
+}
+
+// Esegui la funzione di debug e correzione quando il documento è completamente caricato
+window.addEventListener('load', function() {
+  console.log('Documento caricato, avvio debug e correzione del panning');
+  
+  // Debug degli eventi wheel
+  console.log('Aggiungendo listener globale per gli eventi wheel...');
+  
+  // Aggiungi un listener globale per gli eventi wheel
+  document.addEventListener('wheel', function(e) {
+    console.log('DEBUG GLOBAL WHEEL: Evento wheel intercettato a livello di documento', {
+      deltaY: e.deltaY,
+      target: e.target.tagName + (e.target.id ? '#' + e.target.id : '') + (e.target.className ? '.' + e.target.className : ''),
+      timestamp: new Date().getTime()
+    });
+    
+    // Non preveniamo il comportamento predefinito qui per evitare di interferire con il normale funzionamento
+    
+    // Verifica se l'evento è sul workspace
+    const workspace = document.getElementById('workflowWorkspace');
+    if (workspace && (e.target === workspace || workspace.contains(e.target))) {
+      console.log('DEBUG GLOBAL WHEEL: Evento sul workspace, dovrebbe essere gestito da handleMouseWheel');
+    }
+  }, { passive: true }); // Usiamo passive: true per non bloccare lo scrolling normale
+  
+  // Aggiungi un listener per i tasti + e - per lo zoom come alternativa
+  document.addEventListener('keydown', function(e) {
+    // Solo se il workflow è attivo
+    if (!workflowActive) return;
+    
+    // Ignora se siamo in un campo di input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    
+    console.log('DEBUG KEYBOARD: Tasto premuto', e.key);
+    
+    // Tasto + o = per zoom in
+    if (e.key === '+' || e.key === '=' || (e.ctrlKey && e.key === '+') || (e.ctrlKey && e.key === '=')) {
+      e.preventDefault();
+      console.log('DEBUG KEYBOARD: Zoom in con tastiera');
+      canvasScale = Math.min(canvasScale * 1.2, 5);
+      updateCanvasTransform();
+      updateAllConnections();
+    }
+    // Tasto - per zoom out
+    else if (e.key === '-' || e.key === '_' || (e.ctrlKey && e.key === '-') || (e.ctrlKey && e.key === '_')) {
+      e.preventDefault();
+      console.log('DEBUG KEYBOARD: Zoom out con tastiera');
+      canvasScale = Math.max(canvasScale / 1.2, 0.1);
+      updateCanvasTransform();
+      updateAllConnections();
+    }
+  });
+  
+  // Aspetta un breve momento per assicurarsi che tutto sia inizializzato
+  setTimeout(debugAndFixWorkflowPanning, 1000);
+  
+  // Riprova più volte per sicurezza
+  setTimeout(debugAndFixWorkflowPanning, 2000);
+  setTimeout(debugAndFixWorkflowPanning, 5000);
+  
+  // Debug dello zoom
+  setTimeout(function() {
+    console.log('Verifica dello zoom...');
+    const workspace = document.getElementById('workflowWorkspace');
+    if (workspace) {
+      console.log('Zoom attuale:', canvasScale);
+      console.log('Riconfigurando listener per lo zoom...');
+      
+      // Rimuovi e riapplica l'event listener per lo zoom
+      workspace.removeEventListener('wheel', handleMouseWheel);
+  workspace.addEventListener('wheel', handleMouseWheel, { passive: false });
+  
+      // Verifica che i pulsanti dello zoom funzionino
+      const zoomInBtn = document.querySelector('.zoom-in-btn');
+      const zoomOutBtn = document.querySelector('.zoom-out-btn');
+      
+      if (zoomInBtn) {
+        console.log('Pulsante zoom in trovato, riconfigurando...');
+        zoomInBtn.addEventListener('click', () => {
+          console.log('Zoom in cliccato');
+          canvasScale = Math.min(canvasScale * 1.2, 5);
+          updateCanvasTransform();
+          updateAllConnections();
+        });
+      }
+      
+      if (zoomOutBtn) {
+        console.log('Pulsante zoom out trovato, riconfigurando...');
+        zoomOutBtn.addEventListener('click', () => {
+          console.log('Zoom out cliccato');
+          canvasScale = Math.max(canvasScale / 1.2, 0.1);
+          updateCanvasTransform();
+          updateAllConnections();
+        });
+      }
+    }
+  }, 3000);
+  
+  // Aggiungi un observer per monitorare quando viene attivata la modalità documento
+  setupDocumentModeObserver();
+});
+
+// Configura un MutationObserver per monitorare quando viene aggiunta la classe document-mode al body
+function setupDocumentModeObserver() {
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      if (mutation.type === 'attributes' && 
+          mutation.attributeName === 'class' &&
+          document.body.classList.contains('document-mode')) {
+        
+        console.log('Modalità documento attivata, applicando correzioni per la titlebar');
+        
+        // Ottieni l'altezza della titlebar personalizzata
+        const titleBar = document.querySelector('.title-bar');
+        let titleBarHeight = 30; // Valore predefinito dalla title-bar.css
+        
+        if (titleBar) {
+          titleBarHeight = titleBar.offsetHeight;
+          console.log('Altezza della titlebar personalizzata rilevata:', titleBarHeight);
+        } else {
+          console.log('Titlebar personalizzata non trovata, uso altezza predefinita');
+        }
+        
+        // Applica correzioni per la titlebar dopo un breve ritardo
+        setTimeout(function() {
+          const overlay = document.querySelector('.document-mode-overlay');
+          if (overlay) {
+            // Sistema l'overlay in base all'altezza della titlebar personalizzata
+            overlay.style.top = `${titleBarHeight}px`;
+            overlay.style.height = `calc(100% - ${titleBarHeight}px)`;
+            overlay.style.maxHeight = `calc(100% - ${titleBarHeight}px)`;
+            
+            // Rimuovi eventuali padding-top per evitare doppi spazi
+            overlay.style.paddingTop = '0';
+            
+            console.log('Correzioni applicate all\'overlay del documento');
+          }
+        }, 50);
+      }
+    });
+  });
+  
+  // Osserva i cambiamenti all'attributo class del body
+  observer.observe(document.body, { attributes: true });
+  console.log('Observer per la modalità documento configurato');
+}
+
+// Funzione per creare una nuova nota
+function createNewNote(x, y) {
+  console.log('Creazione di una nuova nota');
+  
+  // Ottieni il contenitore del workspace
+  const workspaceContent = document.getElementById('workflowContent');
+  if (!workspaceContent) {
+    console.error('Contenitore del workspace non trovato');
+    return null;
+  }
+  
+  // Genera l'ID della nota
+  const noteId = `note-${Date.now()}`;
+  
+  // Crea l'elemento della nota
+  const note = document.createElement('div');
+  note.className = 'workspace-note';
+  note.id = noteId;
+  
+  // Calcola la posizione se non è specificata
+  if (x === undefined || y === undefined) {
+    // Ottieni le coordinate centrali del viewport
+    const workspace = document.getElementById('workflowWorkspace');
+    if (workspace) {
+      const viewportWidth = workspace.clientWidth;
+      const viewportHeight = workspace.clientHeight;
+      
+      // Calcola il centro della viewport nelle coordinate del canvas
+      const centerX = Math.round((-canvasOffsetX + viewportWidth / 2) / canvasScale);
+      const centerY = Math.round((-canvasOffsetY + viewportHeight / 2) / canvasScale);
+      
+      x = centerX;
+      y = centerY;
+    } else {
+      // Usa la posizione predefinita se il workspace non è disponibile
+      x = lastNotePosition.x;
+      y = lastNotePosition.y;
+    }
+  }
+  
+  // Calcola la nuova posizione per la prossima nota
+  lastNotePosition = { x: x + 50, y: y + 50 };
+  
+  // Impostiamo la posizione usando translate per migliori performance
+  note.style.transform = `translate(${x}px, ${y}px)`;
+  
+  // Imposta larghezza e altezza
+  note.style.width = '300px';
+  note.style.height = '200px';
+  
+  // Aggiunge l'intestazione alla nota
+  const noteHeader = document.createElement('div');
+  noteHeader.className = 'note-header';
+  note.appendChild(noteHeader);
+  
+  // Aggiunge il titolo della nota all'intestazione
+  const titleElement = document.createElement('div');
+  titleElement.className = 'note-title';
+  titleElement.contentEditable = 'true';
+  titleElement.setAttribute('spellcheck', 'false');
+  titleElement.setAttribute('data-placeholder', 'Titolo nota');
+  
+  // Genera un titolo predefinito
+  noteCounter++;
+  titleElement.textContent = `Nota ${noteCounter}`;
+  noteTitles[noteId] = titleElement.textContent;
+  
+  // Aggiungi l'evento per modificare il titolo
+  setupNoteTitleEditing(titleElement, noteId);
+  
+  noteHeader.appendChild(titleElement);
+  
+  // Aggiungi il pulsante per entrare nella modalità documento
+  const noteActions = document.createElement('div');
+  noteActions.className = 'note-actions';
+  
+  const expandButton = document.createElement('button');
+  expandButton.className = 'note-action';
+  expandButton.innerHTML = '<i class="fas fa-expand-alt"></i>';
+  expandButton.title = 'Espandi';
+  expandButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (typeof enterDocumentMode === 'function') {
+      enterDocumentMode(note);
+    } else {
+      console.warn('La funzione enterDocumentMode non è definita');
+    }
+  });
+  
+  noteActions.appendChild(expandButton);
+  noteHeader.appendChild(noteActions);
+  
+  // Aggiungi la maniglia di ridimensionamento
+  const resizeHandle = document.createElement('div');
+  resizeHandle.className = 'note-resize-handle';
+  resizeHandle.innerHTML = '<i class="fas fa-grip-lines-diagonal"></i>';
+  note.appendChild(resizeHandle);
+  
+  // Aggiunge il contenuto della nota
+  const noteContent = document.createElement('div');
+  noteContent.className = 'note-content';
+  note.appendChild(noteContent);
+  
+  // Aggiungi un blocco di default
+  const defaultBlock = document.createElement('div');
+  defaultBlock.className = 'note-block';
+  defaultBlock.id = `block-${Date.now()}`;
+  
+  const blockContent = document.createElement('div');
+  blockContent.className = 'block-content';
+  blockContent.contentEditable = 'true';
+  blockContent.setAttribute('data-placeholder', 'Scrivi qui...');
+  blockContent.addEventListener('input', handleNoteContentEdit);
+  
+  defaultBlock.appendChild(blockContent);
+  noteContent.appendChild(defaultBlock);
+  
+  // Aggiungi la nota al workspace
+  workspaceContent.appendChild(note);
+  
+  // Imposta la nota come attiva
+  if (typeof setActiveNote === 'function') {
+    setActiveNote(noteId);
+  } else {
+    console.warn('La funzione setActiveNote non è definita');
+    activeNoteId = noteId; // Imposta direttamente la variabile se la funzione non è disponibile
+  }
+  
+  // Aggiungi gli event handlers
+  if (typeof setupNoteEventHandlers === 'function') {
+    setupNoteEventHandlers(note);
+  } else {
+    console.warn('La funzione setupNoteEventHandlers non è definita');
+  }
+  
+  // Aggiungi i connection ports
+  if (typeof setupConnectionPorts === 'function') {
+    setupConnectionPorts(note);
+  } else {
+    console.warn('La funzione setupConnectionPorts non è definita');
+  }
+  
+  // Aggiungi event listener per la maniglia di ridimensionamento
+  resizeHandle.addEventListener('mousedown', function(e) {
+    if (typeof handleNoteResizeStart === 'function') {
+        handleNoteResizeStart(e);
+    } else {
+      console.warn('La funzione handleNoteResizeStart non è definita');
+    }
+  });
+  
+  // Inizializza i pulsanti "Aggiungi tra" per questa nota
+  if (typeof initializeAddBetweenButtons === 'function') {
+    initializeAddBetweenButtons(note);
+  } else {
+    console.warn('La funzione initializeAddBetweenButtons non è definita');
+  }
+  
+  // Salva lo stato iniziale della nota
+  if (typeof saveNoteState === 'function') {
+    saveNoteState(noteId);
+  } else {
+    console.warn('La funzione saveNoteState non è definita');
+  }
+  
+  console.log(`Nota creata con ID: ${noteId}`);
+  return note;
+}
+
+// Esponi la funzione createNewNote globalmente (sposta qui questo codice)
+window.createNewNote = createNewNote;
+
+// Funzione per impostare la nota attiva
+function setActiveNote(noteId) {
+  console.log(`Imposto come attiva la nota: ${noteId}`);
+  
+  // Rimuovi la classe active da tutte le note
+  document.querySelectorAll('.workspace-note').forEach(note => {
+    note.classList.remove('active');
+  });
+  
+  // Imposta l'ID della nota attiva
+  activeNoteId = noteId;
+  
+  // Aggiungi la classe active alla nota specificata
+  const activeNote = document.getElementById(noteId);
+  if (activeNote) {
+    activeNote.classList.add('active');
+  } else {
+    console.warn(`Nota con ID ${noteId} non trovata`);
+  }
+}
+
+// Esponi la funzione setActiveNote globalmente
+window.setActiveNote = setActiveNote;
+
+// Funzione per gestire il click sul workspace (deseleziona le note)
+function handleWorkspaceClick(e) {
+  // Ignora il click se è su una nota o su un elemento interattivo
+  if (e.target.closest('.workspace-note, .note-block, .toolbar-btn, .connection-port, .workflow-minimap, .workflow-minimap-viewport')) {
+    return;
+  }
+  
+  console.log('Click sul workspace - deseleziono le note');
+  
+  // Rimuovi la classe active da tutte le note
+  document.querySelectorAll('.workspace-note').forEach(note => {
+    note.classList.remove('active');
+  });
+  
+  // Resetta l'ID della nota attiva
+  activeNoteId = null;
+}
+
+// Esponi la funzione handleWorkspaceClick globalmente
+window.handleWorkspaceClick = handleWorkspaceClick;
+
+// Funzione per configurare gli event handlers per le note
+function setupNoteEventHandlers(note) {
+  if (!note) {
+    console.warn('setupNoteEventHandlers: nota non valida');
+    return;
+  }
+  
+  console.log(`Configurazione degli event handlers per la nota ${note.id}`);
+  
+  // Evento click sulla nota (imposta come attiva)
+  note.addEventListener('click', function(e) {
+    // Previeni la propagazione per evitare che il click arrivi al workspace
+    e.stopPropagation();
+    
+    // Imposta la nota come attiva
+    setActiveNote(note.id);
+  });
+  
+  // Evento mousedown sull'intestazione per il trascinamento
+  const noteHeader = note.querySelector('.note-header');
+    if (noteHeader) {
+    noteHeader.addEventListener('mousedown', function(e) {
+      // Ignora se non è il tasto sinistro
+      if (e.button !== 0) return;
+      
+      // Previeni la propagazione per evitare conflitti con altri handler
+        e.stopPropagation();
+      e.preventDefault();
+      
+      console.log('Mouse down sull\'header della nota:', note.id);
+      
+      // Imposta la nota come attiva
+      setActiveNote(note.id);
+      
+      // Inizia il trascinamento passando direttamente la nota
+      handleNoteMouseDown(e, note);
+    });
+  }
+  
+  // Evento click sul pulsante di chiusura (se presente)
+  const closeBtn = note.querySelector('.note-close-btn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      
+      // Rimuovi la nota
+      note.remove();
+      
+      // Se era la nota attiva, resetta l'ID della nota attiva
+      if (activeNoteId === note.id) {
+        activeNoteId = null;
+      }
+    });
+  }
+}
+
+// Funzione per configurare l'editing del titolo delle note
+function setupNoteTitleEditing(titleElement, noteId) {
+  if (!titleElement || !noteId) {
+    console.warn('setupNoteTitleEditing: parametri non validi', { titleElement, noteId });
+    return;
+  }
+  
+  // Evento focus sul titolo (seleziona tutto il testo)
+  titleElement.addEventListener('focus', function() {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(titleElement);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+  
+  // Evento input sul titolo (salva il titolo)
+  titleElement.addEventListener('input', function() {
+    // Aggiorna il titolo nella mappa
+    noteTitles[noteId] = titleElement.textContent;
+    
+    // Se esiste la funzione di salvataggio dello stato, usala
+    if (typeof saveNoteState === 'function') {
+      saveNoteState(noteId);
+    }
+  });
+  
+  // Evento blur sul titolo (salva il titolo)
+  titleElement.addEventListener('blur', function() {
+    // Se il titolo è vuoto, imposta un titolo predefinito
+    if (!titleElement.textContent.trim()) {
+      titleElement.textContent = `Nota ${noteId.split('-')[1] || noteCounter}`;
+      noteTitles[noteId] = titleElement.textContent;
+    }
+    
+    // Se esiste la funzione di salvataggio dello stato, usala
+    if (typeof saveNoteState === 'function') {
+      saveNoteState(noteId);
+    }
+  });
+}
+
+// Esponi la funzione setupNoteTitleEditing globalmente
+window.setupNoteTitleEditing = setupNoteTitleEditing;
+
+// Funzione per iniziare il trascinamento di una nota
+function handleNoteMouseDown(e, targetNote) {
+  // Verifica che sia un evento valido e che venga dal tasto sinistro
+  if (!e || e.button !== 0) return;
+  
+  // Trova la nota da trascinare
+  const note = targetNote || e.target.closest('.workspace-note');
+  if (!note) {
+    console.warn('Nessuna nota trovata per il trascinamento');
+    return;
+  }
+  
+  // Previeni il comportamento predefinito e la propagazione
+  e.preventDefault();
+  e.stopPropagation();
+  
+  console.log('Inizio trascinamento nota:', note.id);
+  
+  // Memorizza la nota trascinata e calcola l'offset del mouse
+  draggedNote = note;
+  const rect = note.getBoundingClientRect();
+  
+  // Calcola l'offset relativo alla posizione del mouse nel viewport
+  dragOffsetX = e.clientX - rect.left;
+  dragOffsetY = e.clientY - rect.top;
+  
+  // Imposta lo stile per indicare che la nota è in trascinamento
+  note.classList.add('dragging');
+  
+  // Assicurati che la nota sia sopra alle altre
+  note.style.zIndex = '1000';
+  
+  // Aggiungi gli event listeners al documento per il movimento e il rilascio
+  document.addEventListener('mousemove', handleNoteMouseMove);
+  document.addEventListener('mouseup', handleNoteMouseUp);
+}
+
+// Funzione per gestire il movimento durante il trascinamento di una nota
+function handleNoteMouseMove(e) {
+  // Verifica che ci sia una nota in trascinamento
+  if (!draggedNote) return;
+  
+  // Previeni il comportamento predefinito
+  e.preventDefault();
+  
+  console.log('Trascinamento nota in corso:', draggedNote.id);
+  
+  // Calcola la nuova posizione
+  const workspace = document.getElementById('workflowWorkspace');
+  if (!workspace) return;
+  
+  const rect = workspace.getBoundingClientRect();
+  
+  // Calcola la posizione del mouse nelle coordinate del canvas
+  const mouseXRelativeToWorkspace = e.clientX - rect.left;
+  const mouseYRelativeToWorkspace = e.clientY - rect.top;
+  
+  // Converti in coordinate del canvas considerando zoom e offset
+  const mouseXInCanvas = (mouseXRelativeToWorkspace - canvasOffsetX) / canvasScale;
+  const mouseYInCanvas = (mouseYRelativeToWorkspace - canvasOffsetY) / canvasScale;
+  
+  // Calcola la posizione finale considerando l'offset del punto di trascinamento
+  const noteX = mouseXInCanvas - dragOffsetX / canvasScale;
+  const noteY = mouseYInCanvas - dragOffsetY / canvasScale;
+  
+  console.log('Nuova posizione della nota:', noteX, noteY);
+  
+  // Aggiorna la posizione della nota
+  draggedNote.style.transform = `translate(${noteX}px, ${noteY}px)`;
+  
+  // Importante: aggiorna tutte le connessioni ogni volta che una nota viene spostata
+  updateAllConnections();
+}
+
+// Funzione per terminare il trascinamento di una nota
+function handleNoteMouseUp(e) {
+  // Verifica che ci sia una nota in trascinamento
+  if (!draggedNote) return;
+  
+  // Rimuovi lo stile di trascinamento
+  draggedNote.classList.remove('dragging');
+  
+  // Ripristina lo z-index
+  draggedNote.style.zIndex = '';
+  
+  // Salva lo stato della nota
+  if (typeof saveNoteState === 'function') {
+    saveNoteState(draggedNote.id);
+  }
+  
+  console.log(`Fine trascinamento nota: ${draggedNote.id}`);
+  
+  // Resetta la nota trascinata
+  draggedNote = null;
+}
+
+// Esponi le funzioni di trascinamento delle note globalmente
+window.handleNoteMouseDown = handleNoteMouseDown;
+window.handleNoteMouseMove = handleNoteMouseMove;
+window.handleNoteMouseUp = handleNoteMouseUp;
+
+// Funzione per configurare le porte di connessione su una nota
+function setupConnectionPorts(note) {
+  if (!note) {
+    console.warn('setupConnectionPorts: nota non valida');
+    return;
+  }
+  
+  console.log(`Configurazione delle porte di connessione per la nota ${note.id}`);
+  
+  // Definisci le posizioni delle porte
+  const positions = ['top', 'right', 'bottom', 'left'];
+  
+  // Crea una porta per ogni posizione
+  positions.forEach(position => {
+    // Verifica se la porta esiste già
+    if (note.querySelector(`.connection-port.${position}`)) {
+      return; // La porta esiste già, salta
+    }
+    
+    // Crea l'elemento della porta
+    const port = document.createElement('div');
+    port.className = `connection-port ${position}`;
+    port.setAttribute('data-position', position);
+    port.innerHTML = '<div class="connection-dot"></div>';
+    
+    // Aggiungi la porta alla nota
+    note.appendChild(port);
+    
+    // Aggiungi un tooltip
+    port.setAttribute('title', `Connessione ${position}`);
+    
+    // Aggiungi evento di evidenziazione al passaggio del mouse
+    port.addEventListener('mouseenter', () => {
+      port.classList.add('hover');
+    });
+    
+    port.addEventListener('mouseleave', () => {
+      port.classList.remove('hover');
+    });
+    
+    // Aggiungi evento per l'inizio della connessione
+    port.addEventListener('mousedown', (e) => {
+      // Previeni la propagazione per evitare conflitti con altri handler
+      e.stopPropagation();
+      e.preventDefault();
+      
+      // Se esiste la funzione per gestire l'inizio della connessione, usala
+      if (typeof handleConnectionStart === 'function') {
+        handleConnectionStart(e);
+      } else {
+        console.warn('La funzione handleConnectionStart non è definita');
+      }
+    });
+  });
+}
+
+// Esponi la funzione setupConnectionPorts globalmente
+window.setupConnectionPorts = setupConnectionPorts;
+
+// Funzione per inizializzare i pulsanti di aggiunta tra i blocchi
+function initializeAddBetweenButtons(note) {
+  if (!note) {
+    console.warn('initializeAddBetweenButtons: nota non valida');
+    return;
+  }
+  
+  console.log(`Inizializzazione dei pulsanti di aggiunta per la nota ${note.id}`);
+  
+  // Implementazione base, può essere espansa in seguito
+  // Al momento non fa nulla di specifico
+  
+  // In futuro, questa funzione potrebbe aggiungere pulsanti "+" tra i blocchi
+  // per consentire l'aggiunta di nuovi blocchi in posizioni specifiche
+}
+
+// Esponi la funzione initializeAddBetweenButtons globalmente
+window.initializeAddBetweenButtons = initializeAddBetweenButtons;
+
+// Funzione per entrare in modalità documento
+function enterDocumentMode(note) {
+  if (!note) {
+    console.error('Nota mancante per entrare in modalità documento');
+    return;
+  }
+  
+  console.log('Entrando in modalità documento per la nota:', note.id);
+  
+  // Assicurati che la classe del sistema operativo sia applicata al body
+  if (!document.body.classList.contains('windows') &&
+      !document.body.classList.contains('macos') &&
+      !document.body.classList.contains('linux')) {
+    detectOperatingSystem();
+  }
+  
+  // Memorizza l'ID della nota attiva
+  activeNoteId = note.id;
+  
+  // Nascondi gli elementi del canvas
+  document.querySelectorAll('.workspace-note').forEach(el => {
+    if (el !== note) {
+      el.style.visibility = 'hidden';
+    }
+  });
+  document.querySelectorAll('.workspace-ai-node, svg.connector').forEach(el => {
+    el.style.visibility = 'hidden';
+  });
+  
+  // Aggiungi la classe document-mode al body
+  document.body.classList.add('document-mode');
+  
+  // Aggiungi il tema scuro se attivo
+  if (document.body.classList.contains('dark-theme')) {
+    document.body.classList.add('dark-theme');
+  }
+  
+  // Crea l'overlay della modalità documento
+  const overlay = document.createElement('div');
+  overlay.className = 'document-mode-overlay';
+  overlay.setAttribute('data-note-id', note.id);
+  document.body.appendChild(overlay);
+  
+  // Crea la toolbar superiore
+  const topToolbar = document.createElement('div');
+  topToolbar.className = 'document-top-toolbar';
+  
+  // Parte sinistra della toolbar
+  const toolbarLeft = document.createElement('div');
+  toolbarLeft.className = 'document-top-toolbar-left';
+  
+  // Pulsante per tornare alla modalità canvas
+  const backButton = document.createElement('button');
+  backButton.className = 'document-toolbar-btn doc-back-btn';
+  backButton.innerHTML = '<i class="fas fa-arrow-left"></i>';
+  backButton.title = 'Torna alla modalità canvas';
+  backButton.addEventListener('click', exitDocumentMode);
+  
+  // Titolo del documento
+  const titleContainer = document.createElement('div');
+  titleContainer.className = 'document-title-container';
+  
+  const titleInput = document.createElement('input');
+  titleInput.className = 'document-title-input';
+  titleInput.type = 'text';
+  titleInput.value = note.querySelector('.note-title')?.textContent || 'Documento senza titolo';
+  titleInput.addEventListener('input', (e) => {
+    // Aggiorna anche il titolo della nota nel canvas
+    const noteTitle = note.querySelector('.note-title');
+    if (noteTitle) {
+      noteTitle.textContent = e.target.value;
+    }
+    
+    // Mostra lo stato "Salvando..."
+    showSavingStatus();
+    
+    // Salva lo stato della nota
+    saveNoteState(note.id);
+  });
+  
+  titleContainer.appendChild(titleInput);
+  
+  toolbarLeft.appendChild(backButton);
+  toolbarLeft.appendChild(titleContainer);
+  
+  // Parte destra della toolbar
+  const toolbarRight = document.createElement('div');
+  toolbarRight.className = 'document-top-toolbar-right';
+  
+  // Stato di salvataggio
+  const saveStatus = document.createElement('div');
+  saveStatus.className = 'document-save-status';
+  saveStatus.innerHTML = '<i class="fas fa-check-circle"></i> Salvato';
+  
+  // Pulsante tema chiaro/scuro
+  const themeToggle = document.createElement('button');
+  themeToggle.className = 'document-toolbar-btn';
+  themeToggle.innerHTML = document.body.classList.contains('dark-theme') ? 
+    '<i class="fas fa-sun"></i>' : 
+    '<i class="fas fa-moon"></i>';
+  themeToggle.title = document.body.classList.contains('dark-theme') ? 
+    'Passa al tema chiaro' : 
+    'Passa al tema scuro';
+  themeToggle.addEventListener('click', toggleDocumentTheme);
+  
+  // Pulsante condividi
+  const shareButton = document.createElement('button');
+  shareButton.className = 'document-toolbar-btn';
+  shareButton.innerHTML = '<i class="fas fa-share-alt"></i>';
+  shareButton.title = 'Condividi';
+  
+  toolbarRight.appendChild(saveStatus);
+  toolbarRight.appendChild(themeToggle);
+  toolbarRight.appendChild(shareButton);
+  
+  // Aggiungi le parti della toolbar all'overlay
+  topToolbar.appendChild(toolbarLeft);
+  topToolbar.appendChild(toolbarRight);
+  overlay.appendChild(topToolbar);
+  
+  // Crea la barra di formattazione
+  const formatToolbar = document.createElement('div');
+  formatToolbar.className = 'document-format-toolbar';
+  
+  // Gruppo: Stili di blocco
+  const blockStyleGroup = document.createElement('div');
+  blockStyleGroup.className = 'toolbar-group';
+  
+  // Selettore di stile blocco
+  const blockStyleSelect = document.createElement('select');
+  blockStyleSelect.className = 'format-select';
+  blockStyleSelect.innerHTML = `
+    <option value="paragraph">Paragrafo</option>
+    <option value="heading">Titolo 1</option>
+    <option value="subheading">Titolo 2</option>
+    <option value="quote">Citazione</option>
+    <option value="callout">Nota</option>
+    <option value="code">Codice</option>
+    <option value="divider">Separatore</option>
+  `;
+  blockStyleSelect.addEventListener('change', (e) => {
+    const selectedBlockType = e.target.value;
+    const focusedBlock = getFocusedBlock();
+    if (focusedBlock) {
+      applyBlockStyle(focusedBlock, selectedBlockType);
+    }
+  });
+  
+  blockStyleGroup.appendChild(blockStyleSelect);
+  
+  // Gruppo: Formattazione testo
+  const textFormatGroup = document.createElement('div');
+  textFormatGroup.className = 'toolbar-group';
+  textFormatGroup.innerHTML = `
+    <button class="document-toolbar-btn" title="Grassetto" data-command="bold"><i class="fas fa-bold"></i></button>
+    <button class="document-toolbar-btn" title="Corsivo" data-command="italic"><i class="fas fa-italic"></i></button>
+    <button class="document-toolbar-btn" title="Sottolineato" data-command="underline"><i class="fas fa-underline"></i></button>
+    <button class="document-toolbar-btn" title="Barrato" data-command="strikeThrough"><i class="fas fa-strikethrough"></i></button>
+  `;
+  
+  // Aggiungi event listeners per i comandi di formattazione
+  textFormatGroup.querySelectorAll('.document-toolbar-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const command = btn.getAttribute('data-command');
+      if (command) {
+        document.execCommand(command, false, null);
+      }
+    });
+  });
+  
+  // Gruppo: Allineamento
+  const alignmentGroup = document.createElement('div');
+  alignmentGroup.className = 'toolbar-group';
+  alignmentGroup.innerHTML = `
+    <button class="document-toolbar-btn" title="Allinea a sinistra" data-command="justifyLeft"><i class="fas fa-align-left"></i></button>
+    <button class="document-toolbar-btn" title="Allinea al centro" data-command="justifyCenter"><i class="fas fa-align-center"></i></button>
+    <button class="document-toolbar-btn" title="Allinea a destra" data-command="justifyRight"><i class="fas fa-align-right"></i></button>
+    <button class="document-toolbar-btn" title="Giustifica" data-command="justifyFull"><i class="fas fa-align-justify"></i></button>
+  `;
+  
+  // Aggiungi event listeners per i comandi di allineamento
+  alignmentGroup.querySelectorAll('.document-toolbar-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const command = btn.getAttribute('data-command');
+      if (command) {
+        document.execCommand(command, false, null);
+      }
+    });
+  });
+  
+  // Gruppo: Liste
+  const listsGroup = document.createElement('div');
+  listsGroup.className = 'toolbar-group';
+  listsGroup.innerHTML = `
+    <button class="document-toolbar-btn" title="Lista puntata" data-command="insertUnorderedList"><i class="fas fa-list-ul"></i></button>
+    <button class="document-toolbar-btn" title="Lista numerata" data-command="insertOrderedList"><i class="fas fa-list-ol"></i></button>
+    <button class="document-toolbar-btn" title="Lista di controllo"><i class="fas fa-tasks"></i></button>
+  `;
+  
+  // Event listener per le liste puntate e numerate
+  listsGroup.querySelectorAll('[data-command]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const command = btn.getAttribute('data-command');
+      if (command) {
+        document.execCommand(command, false, null);
+      }
+    });
+  });
+  
+  // Pulsante per lista di controllo
+  const checklistBtn = listsGroup.querySelector('button:last-child');
+  if (checklistBtn) {
+    checklistBtn.addEventListener('click', () => {
+      const focusedBlock = getFocusedBlock();
+      if (focusedBlock) {
+        convertBlockToToDo(focusedBlock);
+      }
+    });
+  }
+  
+  // Aggiungi i gruppi alla barra di formattazione
+  formatToolbar.appendChild(blockStyleGroup);
+  formatToolbar.appendChild(textFormatGroup);
+  formatToolbar.appendChild(alignmentGroup);
+  formatToolbar.appendChild(listsGroup);
+  
+  // Aggiungi la barra di formattazione all'overlay
+  overlay.appendChild(formatToolbar);
+  
+  // Crea il contenitore principale del documento
+  const documentContent = document.createElement('div');
+  documentContent.className = 'document-content';
+  
+  // Contenitore del documento con larghezza fissa
+  const documentContainer = document.createElement('div');
+  documentContainer.className = 'document-container';
+  
+  // Crea il primo blocco di testo se è una nuova nota
+  let documentHtml = '';
+  if (note.querySelector('.note-content')) {
+    documentHtml = note.querySelector('.note-content').innerHTML;
+  }
+  
+  if (!documentHtml.trim()) {
+    documentHtml = '<div class="note-block block-paragraph"><div class="block-content" contenteditable="true" data-placeholder="Inizia a scrivere..."></div></div>';
+  } else if (!documentHtml.includes('note-block')) {
+    // Converte il contenuto semplice in un blocco
+    documentHtml = `<div class="note-block block-paragraph"><div class="block-content" contenteditable="true">${documentHtml}</div></div>`;
+  }
+  
+  documentContainer.innerHTML = documentHtml;
+  
+  // Imposta gli event handler per i blocchi
+  documentContainer.querySelectorAll('.note-block').forEach(block => {
+    setupBlockEventHandlers(block);
+  });
+  
+  // Aggiungi il container del documento all'overlay
+  documentContent.appendChild(documentContainer);
+  overlay.appendChild(documentContent);
+  
+  // Aggiungi la barra di stato in basso
+  const statusBar = document.createElement('div');
+  statusBar.className = 'document-status-bar';
+  
+  const statusInfo = document.createElement('div');
+  statusInfo.className = 'document-status-info';
+  statusBar.appendChild(statusInfo);
+  
+  overlay.appendChild(statusBar);
+  
+  // Aggiorna il conteggio delle parole
+  updateDocumentWordCount(documentContainer);
+  
+  // Metti il focus sul primo blocco di contenuto
+  setTimeout(() => {
+    const firstBlock = documentContainer.querySelector('.block-content');
+    if (firstBlock) {
+      firstBlock.focus();
+    }
+  }, 100);
+}
+
+// Funzione per uscire dalla modalità documento
+function exitDocumentMode() {
+  console.log('Uscendo dalla modalità documento');
+  
+  // Ripristina la visibilità degli elementi del canvas
+  restoreCanvasElements();
+  
+  // Trova l'overlay e la nota associata
+  const overlay = document.querySelector('.document-mode-overlay');
+  if (!overlay) {
+    console.warn('Overlay della modalità documento non trovato');
+    return;
+  }
+  
+  const noteId = overlay.getAttribute('data-note-id');
+  const note = document.getElementById(noteId);
+  
+  if (note) {
+    // Trasferisci il contenuto dall'overlay alla nota
+    const documentContainer = overlay.querySelector('.document-container');
+    const blocks = documentContainer.querySelectorAll('.note-block');
+    
+    // Ottieni il contenitore dei blocchi della nota
+    const noteContent = note.querySelector('.note-content');
+    
+    // Pulisci il contenuto della nota
+    noteContent.innerHTML = '';
+    
+    // Aggiungi i blocchi aggiornati alla nota
+    blocks.forEach(block => {
+      const clonedBlock = block.cloneNode(true);
+      
+      // Ripristina gli event handler
+      setupBlockEventHandlers(clonedBlock);
+      
+      noteContent.appendChild(clonedBlock);
+    });
+    
+    // Aggiorna il titolo della nota
+    const documentTitle = overlay.querySelector('.document-title-input');
+    const noteTitle = note.querySelector('.note-title');
+    
+    if (documentTitle && noteTitle) {
+      noteTitle.textContent = documentTitle.value;
+    }
+    
+    // Salva lo stato della nota
+    saveNoteState(noteId);
+  }
+  
+  // Rimuovi l'overlay
+  overlay.remove();
+  
+  // Rimuovi la classe document-mode dal body
+  document.body.classList.remove('document-mode');
+  
+  // Ripristina l'interattività del canvas
+  document.querySelectorAll('.workspace-note, .workspace-ai-node, svg.connector').forEach(el => {
+    el.style.visibility = 'visible';
+    el.style.opacity = '1'; // Assicurati che non ci siano opacità residue
+    el.style.display = ''; // Ripristina il display a default
+  });
+  
+  // Forza un aggiornamento del canvas per risolvere eventuali problemi di visualizzazione
+  setTimeout(() => {
+    updateCanvasTransform();
+    updateAllConnections();
+  }, 100);
+  
+  // Ripristina la nota attiva
+  if (note) {
+    setActiveNote(noteId);
+    
+    // Forza la visualizzazione della nota corretta
+    note.style.visibility = 'visible';
+    note.style.opacity = '1';
+  }
+}
+
+// Funzione per alternare tra tema chiaro e scuro nella modalità documento
+function toggleDocumentTheme() {
+  console.log('Cambio del tema del documento');
+  
+  const overlay = document.querySelector('.document-mode-overlay');
+  if (!overlay) return;
+  
+  // Ottieni il pulsante del tema
+  const themeToggle = overlay.querySelector('.document-top-toolbar-right .document-toolbar-btn');
+  if (!themeToggle) return;
+  
+  // Cambia il tema
+  if (document.body.classList.contains('dark-theme')) {
+    // Passa al tema chiaro
+    document.body.classList.remove('dark-theme');
+    themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+    themeToggle.title = 'Passa al tema scuro';
+    console.log('Tema documento cambiato in chiaro');
+  } else {
+    // Passa al tema scuro
+    document.body.classList.add('dark-theme');
+    themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+    themeToggle.title = 'Passa al tema chiaro';
+    console.log('Tema documento cambiato in scuro');
+  }
+}
+
+// Funzione per ottenere il blocco attualmente focalizzato
+function getFocusedBlock() {
+  const documentOverlay = document.querySelector('.document-mode-overlay');
+  if (!documentOverlay) return null;
+  
+  // Cerca il blocco che contiene l'elemento attualmente focalizzato
+  const focusedElement = document.activeElement;
+  if (!focusedElement || !documentOverlay.contains(focusedElement)) return null;
+  
+  // Cerca il blocco di cui l'elemento focalizzato fa parte
+  let blockElement = focusedElement;
+  
+  // Risali nella gerarchia del DOM finché non trovi il blocco
+  while (blockElement && !blockElement.classList.contains('note-block') && blockElement !== documentOverlay) {
+    blockElement = blockElement.parentElement;
+  }
+  
+  // Se abbiamo raggiunto l'overlay senza trovare un blocco, restituisci null
+  if (!blockElement || blockElement === documentOverlay) return null;
+  
+  return blockElement;
+}
+
+// Funzione per applicare un diverso stile di blocco
+function applyBlockStyle(block, blockType) {
+  if (!block) return;
+  
+  // Salva il contenuto e la posizione del cursore
+  const blockContent = block.querySelector('.block-content');
+  if (!blockContent) return;
+  
+  const content = blockContent.innerHTML;
+  const selection = window.getSelection();
+  const range = selection.getRangeAt(0);
+  
+  // Rimuovi tutte le classi di tipo blocco
+  const blockTypeClasses = ['block-paragraph', 'block-heading', 'block-subheading', 'block-quote', 
+                          'block-callout', 'block-code', 'block-divider', 'block-to-do'];
+  blockTypeClasses.forEach(cls => block.classList.remove(cls));
+  
+  // Applica la classe per il nuovo tipo di blocco
+  block.classList.add(`block-${blockType}`);
+  
+  // Gestisci tipi di blocco specifici
+  switch (blockType) {
+    case 'paragraph':
+      convertBlockToParagraph(block);
+      break;
+    case 'heading':
+      convertBlockToHeading(block);
+      break;
+    case 'subheading':
+      convertBlockToSubheading(block);
+      break;
+    case 'quote':
+      if (!block.classList.contains('block-quote')) {
+        blockContent.innerHTML = content;
+      }
+      break;
+    case 'callout':
+      if (!block.classList.contains('block-callout')) {
+        const calloutContent = document.createElement('div');
+        calloutContent.className = 'block-content';
+        calloutContent.innerHTML = content;
+        calloutContent.contentEditable = true;
+        
+        // Svuota il blocco e aggiungi il nuovo contenuto
+        block.innerHTML = '';
+        block.appendChild(calloutContent);
+      }
+      break;
+    case 'code':
+      convertBlockToCode(block);
+      break;
+    case 'divider':
+      convertBlockToDivider(block);
+      break;
+    case 'to-do':
+      convertBlockToToDo(block);
+      break;
+  }
+  
+  // Mostra lo stato "Salvando..."
+  showSavingStatus();
+  
+  // Cerca di ripristinare la posizione del cursore se possibile
+  try {
+    const newContent = block.querySelector('.block-content');
+    if (newContent && document.body.contains(newContent)) {
+      newContent.focus();
+      // Ripristina il cursore se possibile
+      if (range && range.startContainer) {
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    }
+  } catch (e) {
+    console.log('Errore nel ripristino del cursore:', e);
+  }
+}
+
+// Funzione per iniziare il trascinamento di un blocco
+function handleBlockDragStart(e) {
+  if (e.button !== 0) return; // Solo click sinistro
+  
+  e.preventDefault();
+  e.stopPropagation();
+  
+  // Il blocco viene trascinato
+  const handle = e.target;
+  const block = handle.closest('.note-block');
+  if (!block) return;
+  
+  // Salva il blocco come quello che stiamo trascinando
+  draggingBlock = block;
+  
+  // Memorizza la posizione di partenza del mouse
+  blockDragStartY = e.clientY;
+  
+  // Memorizza la posizione del mouse relativa al blocco
+  mouseOffsetY = e.clientY - block.getBoundingClientRect().top;
+  mouseOffsetX = e.clientX - block.getBoundingClientRect().left;
+  
+  // Crea o ottieni il blocco overlay per il trascinamento (clone visuale)
+  if (!blockDragOverlay) {
+    blockDragOverlay = document.createElement('div');
+    blockDragOverlay.className = 'block-drag-overlay';
+    document.body.appendChild(blockDragOverlay);
+  }
+  
+  // Copia lo stile e il contenuto dal blocco originale
+  blockDragOverlay.innerHTML = block.innerHTML;
+  blockDragOverlay.style.width = block.offsetWidth + 'px';
+  blockDragOverlay.style.height = block.offsetHeight + 'px';
+  blockDragOverlay.style.left = block.getBoundingClientRect().left + 'px';
+  blockDragOverlay.style.top = block.getBoundingClientRect().top + 'px';
+  blockDragOverlay.style.display = 'block';
+  
+  // Nascondi temporaneamente il blocco originale o rendilo trasparente
+  block.style.opacity = '0.3';
+  
+  // Crea il segnaposto per mostrare dove verrà inserito il blocco
+  if (!blockDragPlaceholder) {
+    blockDragPlaceholder = document.createElement('div');
+    blockDragPlaceholder.className = 'block-drag-placeholder';
+  }
+  
+  // Inserisci il segnaposto prima del blocco corrente
+  block.parentNode.insertBefore(blockDragPlaceholder, block);
+  blockDragPlaceholder.style.height = block.offsetHeight + 'px';
+  blockDragPlaceholder.style.display = 'block';
+  
+  // Memorizza la posizione attuale del mouse per l'animazione fluida
+  lastMouseY = e.clientY;
+  
+  // Bind delle funzioni di gestione del movimento e del rilascio
+  handleBlockDragMoveBound = handleBlockDragMove.bind(this);
+  handleBlockDragEndBound = handleBlockDragEnd.bind(this);
+  
+  // Aggiungi i listener per il movimento e il rilascio
+  document.addEventListener('mousemove', handleBlockDragMoveBound);
+  document.addEventListener('mouseup', handleBlockDragEndBound);
+  
+  // Funzione di supporto per il movimento fluido durante il trascinamento
+  function animateDrag() {
+    if (!draggingBlock) return;
+    
+    // Aggiorna la posizione dell'overlay
+    blockDragOverlay.style.top = (currentDragY - mouseOffsetY) + 'px';
+    blockDragOverlay.style.left = (currentDragX - mouseOffsetX) + 'px';
+    
+    // Richiedi il prossimo frame se stiamo ancora trascinando
+    if (draggingBlock) {
+      blockAnimationFrame = requestAnimationFrame(animateDrag);
+    }
+  }
+  
+  // Avvia l'animazione
+  blockAnimationFrame = requestAnimationFrame(animateDrag);
+}
+
+// Funzione per gestire il movimento durante il trascinamento del blocco
+function handleBlockDragMove(e) {
+  e.preventDefault();
+  
+  if (!draggingBlock || !blockDragOverlay) return;
+  
+  // Aggiorna la posizione attuale per l'animazione
+  currentDragX = e.clientX;
+  currentDragY = e.clientY;
+  
+  // Trova il container dei blocchi
+  const container = draggingBlock.parentNode;
+  if (!container) return;
+  
+  // Ottieni tutti i blocchi nel container
+  const blocks = Array.from(container.querySelectorAll('.note-block'));
+  const blockIndex = blocks.indexOf(draggingBlock);
+  
+  // Determina se spostare il segnaposto
+  for (let i = 0; i < blocks.length; i++) {
+    // Salta il blocco che stiamo trascinando
+    if (blocks[i] === draggingBlock) continue;
+    
+    const rect = blocks[i].getBoundingClientRect();
+    const blockMiddle = rect.top + rect.height / 2;
+    
+    // Se il mouse è sopra questo blocco, sposta il segnaposto
+    if (e.clientY < blockMiddle && i < blockIndex) {
+      container.insertBefore(blockDragPlaceholder, blocks[i]);
+      break;
+    } else if (e.clientY >= blockMiddle && i > blockIndex) {
+      // Se siamo dopo l'ultimo elemento
+      if (i === blocks.length - 1) {
+        container.appendChild(blockDragPlaceholder);
+      } else {
+        container.insertBefore(blockDragPlaceholder, blocks[i + 1]);
+      }
+      break;
+    }
+  }
+}
+
+// Funzione per terminare il trascinamento del blocco
+function handleBlockDragEnd(e) {
+  if (!draggingBlock) return;
+  
+  // Rimuovi i listener di evento
+  document.removeEventListener('mousemove', handleBlockDragMoveBound);
+  document.removeEventListener('mouseup', handleBlockDragEndBound);
+  
+  // Annulla l'animazione
+  if (blockAnimationFrame) {
+    cancelAnimationFrame(blockAnimationFrame);
+    blockAnimationFrame = null;
+  }
+  
+  // Sposta il blocco nella nuova posizione
+  if (blockDragPlaceholder && blockDragPlaceholder.parentNode) {
+    blockDragPlaceholder.parentNode.insertBefore(draggingBlock, blockDragPlaceholder);
+    blockDragPlaceholder.parentNode.removeChild(blockDragPlaceholder);
+  }
+  
+  // Ripristina lo stile del blocco
+  draggingBlock.style.opacity = '1';
+  
+  // Nascondi l'overlay di trascinamento
+  if (blockDragOverlay) {
+    blockDragOverlay.style.display = 'none';
+  }
+  
+  // Resetta le variabili
+  draggingBlock = null;
+  blockDragStartY = 0;
+  mouseOffsetY = 0;
+  mouseOffsetX = 0;
+  
+  // Aggiorna il conteggio delle parole e salva se siamo in modalità documento
+  if (document.body.classList.contains('document-mode')) {
+    const overlay = document.querySelector('.document-mode-overlay');
+    if (overlay) {
+      const documentContainer = overlay.querySelector('.document-container');
+      if (documentContainer) {
+        updateDocumentWordCount(documentContainer);
+        
+        // Salva lo stato della nota
+        const noteId = overlay.getAttribute('data-note-id');
+        if (noteId) {
+          saveNoteState(noteId);
+        }
+      }
+    }
+  }
 }
