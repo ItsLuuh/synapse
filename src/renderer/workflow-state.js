@@ -130,6 +130,30 @@ window.workflowFunctions.saveWorkflowState = function(workflowId, filename = nul
     });
   }
   
+  // Aggiungi le connessioni tra le note
+  const connectionsData = [];
+  
+  // Utilizziamo la variabile connections definita in workflow.js
+  if (window.connections && Array.isArray(window.connections)) {
+    window.connections.forEach(connection => {
+      connectionsData.push({
+        id: connection.id,
+        startElementId: connection.startElementId,
+        startPortPosition: connection.startPortPosition,
+        endElementId: connection.endElementId,
+        endPortPosition: connection.endPortPosition,
+        label: connection.label || '', // Salviamo l'etichetta della connessione
+        style: connection.style || { // Salviamo lo stile della connessione
+          index: 0,
+          stroke: '#4a4dff',
+          strokeWidth: '2',
+          dashArray: 'none',
+          opacity: '1'
+        }
+      });
+    });
+  }
+  
   // Raccogli le informazioni sul canvas
   const canvasData = {
     scale: window.canvasScale || 1,
@@ -142,6 +166,7 @@ window.workflowFunctions.saveWorkflowState = function(workflowId, filename = nul
     notes: notesData,
     aiNodes: aiNodesData,
     connectors: connectorsData,
+    connections: connectionsData, // Aggiungiamo le connessioni delle note allo stato
     canvas: canvasData,
     lastUpdated: new Date().toISOString(),
     metadata: {
@@ -234,7 +259,7 @@ window.workflowFunctions.loadWorkflowState = function(workflowId, fileContent = 
     window.canvasScale = state.canvas.scale || 1;
     window.canvasOffsetX = state.canvas.offsetX || 0;
     window.canvasOffsetY = state.canvas.offsetY || 0;
-    window.updateWorkspaceTransform();
+    window.updateCanvasTransform();
   }
   
   // Ricrea le note dal salvataggio
@@ -247,6 +272,7 @@ window.workflowFunctions.loadWorkflowState = function(workflowId, fileContent = 
       
       // Imposta la posizione e dimensione
       note.style.transform = `translate(${noteData.x}px, ${noteData.y}px)`;
+      note.style.transformOrigin = '0 0';
       note.style.width = `${noteData.width}px`;
       note.style.height = `${noteData.height}px`;
       
@@ -274,6 +300,17 @@ window.workflowFunctions.loadWorkflowState = function(workflowId, fileContent = 
       const noteContent = document.createElement('div');
       noteContent.className = 'note-content';
       note.appendChild(noteContent);
+      
+      // Aggiungi la maniglia di ridimensionamento
+      const resizeHandle = document.createElement('div');
+      resizeHandle.className = 'note-resize-handle';
+      resizeHandle.innerHTML = '<i class="fas fa-grip-lines-diagonal"></i>';
+      note.appendChild(resizeHandle);
+      
+      // Aggiungi le maniglie di ridimensionamento aggiuntive
+      if (typeof window.addResizeHandlesToNote === 'function') {
+        window.addResizeHandlesToNote(note);
+      }
       
       // Aggiungi i blocchi dalla nota
       if (noteData.blocks && noteData.blocks.length > 0) {
@@ -383,6 +420,63 @@ window.workflowFunctions.loadWorkflowState = function(workflowId, fileContent = 
         }
       });
     }, 100);
+  }
+  
+  // Ricrea le connessioni dal salvataggio
+  if (state.connections && Array.isArray(state.connections)) {
+    // Resetta l'array delle connessioni se disponibile
+    if (typeof window.connections !== 'undefined') {
+      window.connections = [];
+    }
+    
+    // Attendi che le note siano completamente renderizzate
+    setTimeout(() => {
+      state.connections.forEach(connectionData => {
+        // Trova gli elementi e le porte
+        const startElement = document.getElementById(connectionData.startElementId);
+        const endElement = document.getElementById(connectionData.endElementId);
+        
+        if (startElement && endElement) {
+          const startPort = startElement.querySelector(`.connection-port[data-position="${connectionData.startPortPosition}"]`);
+          const endPort = endElement.querySelector(`.connection-port[data-position="${connectionData.endPortPosition}"]`);
+          
+          if (startPort && endPort) {
+            // Crea la connessione
+            const connection = window.createPermanentConnection(startElement, startPort, endElement, endPort);
+            
+            // Se la connessione è stata creata con successo, imposta le proprietà aggiuntive
+            if (connection) {
+              // Imposta l'etichetta se presente
+              if (connectionData.label) {
+                connection.label = connectionData.label;
+                
+                // Crea e visualizza l'etichetta permanente
+                if (typeof window.addConnectionLabel === 'function') {
+                  window.addConnectionLabel(connection.id, connection.path, false);
+                }
+              }
+              
+              // Imposta lo stile se presente
+              if (connectionData.style) {
+                connection.style = connectionData.style;
+                
+                // Applica lo stile salvato
+                connection.path.setAttribute('stroke', connectionData.style.stroke);
+                connection.path.setAttribute('stroke-width', connectionData.style.strokeWidth);
+                connection.path.style.strokeDasharray = connectionData.style.dashArray === 'none' ? '' : connectionData.style.dashArray;
+                connection.path.style.opacity = connectionData.style.opacity;
+                connection.path.setAttribute('data-style-index', connectionData.style.index);
+              }
+              
+              // Aggiorna la posizione per visualizzare l'etichetta e la connessione
+              setTimeout(() => {
+                window.updateConnectionPosition(connection);
+              }, 100);
+            }
+          }
+        }
+      });
+    }, 200);
   }
   
   // Aggiorna la minimappa

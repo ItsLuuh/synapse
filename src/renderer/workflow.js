@@ -61,6 +61,32 @@ let currentDragX = 0;
 let currentDragY = 0;
 let rafId = null;
 
+// Variabile per schedulare l'aggiornamento delle connessioni
+let connectionsUpdateScheduled = false;
+
+// Scheduling delle connessioni e della minimappa
+let minimapUpdateScheduled = false;
+
+// Pianifica l'aggiornamento delle connessioni in modo ottimizzato
+function scheduleConnectionsUpdate() {
+  if (connectionsUpdateScheduled) return;
+  connectionsUpdateScheduled = true;
+  
+  // Aggiorna le connessioni con requestAnimationFrame per ottimizzare le prestazioni
+  requestAnimationFrame(() => {
+    // Aggiorna tutte le connessioni
+    connections.forEach(connection => {
+      try {
+        updateConnectionPosition(connection);
+      } catch (error) {
+        console.error('Errore durante l\'aggiornamento pianificato della connessione:', error);
+      }
+    });
+    
+    connectionsUpdateScheduled = false;
+  });
+}
+
 // Memorizza le note per il loro ID
 let noteTitles = {};
 
@@ -74,32 +100,8 @@ window.workflowFunctions = window.workflowFunctions || {};
 
 // Esponi la funzione di inizializzazione
 window.workflowFunctions.initialize = function() {
-  // Rileva il sistema operativo e aggiungi la classe appropriata al body
-  detectOperatingSystem();
   initializeWorkflow();
 };
-
-// Rileva il sistema operativo
-function detectOperatingSystem() {
-  const platform = navigator.platform.toLowerCase();
-  let osClass = '';
-  
-  if (platform.includes('win')) {
-    osClass = 'windows';
-    console.log('Sistema operativo rilevato: Windows');
-  } else if (platform.includes('mac')) {
-    osClass = 'macos';
-    console.log('Sistema operativo rilevato: macOS');
-  } else if (platform.includes('linux')) {
-    osClass = 'linux';
-    console.log('Sistema operativo rilevato: Linux');
-  } else {
-    osClass = 'windows'; // Default a Windows se non rilevato
-    console.log('Sistema operativo non riconosciuto, default a Windows');
-  }
-  
-  document.body.classList.add(osClass);
-}
 
 // Aggiungi stili CSS per migliorare il panning e lo zoom
 const workflowStyles = document.createElement('style');
@@ -316,7 +318,7 @@ function initializeWorkflow() {
     svgContainer.style.top = "0";
     svgContainer.style.left = "0";
     svgContainer.style.pointerEvents = "none";
-    svgContainer.style.zIndex = "5";
+    svgContainer.style.zIndex = "15"; // Aumentato z-index per essere sopra le note
     connectionsContainer.appendChild(svgContainer);
     
     // Assicurati che il container occupi tutto lo spazio disponibile
@@ -338,9 +340,7 @@ function initializeWorkflow() {
       zoomInBtn.addEventListener('click', () => {
         console.log('Pulsante zoom in cliccato');
         canvasScale = Math.min(canvasScale * 1.2, 5);
-        updateCanvasTransform();
-        // Aggiorna anche le connessioni
-        updateAllConnections();
+        updateCanvasTransform(); // Questa chiama già scheduleConnectionsUpdate()
       });
     }
 
@@ -348,11 +348,11 @@ function initializeWorkflow() {
       zoomOutBtn.addEventListener('click', () => {
         console.log('Pulsante zoom out cliccato');
         canvasScale = Math.max(canvasScale / 1.2, 0.1);
-        updateCanvasTransform();
-        // Aggiorna anche le connessioni
-        updateAllConnections();
+        updateCanvasTransform(); // Questa chiama già scheduleConnectionsUpdate()
       });
     }
+
+    // debugAndFixWorkflowPanning(); // Commentato per evitare conflitti con il panning standard
 
     if (resetViewBtn) {
       resetViewBtn.addEventListener('click', () => {
@@ -361,12 +361,11 @@ function initializeWorkflow() {
         canvasScale = 1;
         canvasOffsetX = -4500; // Posizione per centrare circa il punto 5000 sulla larghezza
         canvasOffsetY = -4500; // Posizione per centrare circa il punto 5000 sull'altezza
-        updateCanvasTransform();
-        // Aggiorna anche le connessioni
-        updateAllConnections();
+        updateCanvasTransform(); // Questa chiama già scheduleConnectionsUpdate()
       });
     }
 
+    /*
     // Create right sidebar with AI chat
     const rightSidebar = document.createElement('div');
     rightSidebar.className = 'workflow-right-sidebar';
@@ -381,6 +380,7 @@ function initializeWorkflow() {
 
     // Add AI chat component
     createAIChat(rightSidebar);
+    */
     
     // Create minimap in the bottom right corner
     createMinimap(centerContainer);
@@ -436,6 +436,24 @@ function initializeWorkflow() {
         }, 500);
       }, 2000);
     }
+
+    // Inizializza il contenitore per le etichette delle connessioni
+    // Assicurati che venga aggiunto al workspaceArea per scalare e muoversi correttamente
+    const mainWorkspaceArea = document.getElementById('workflow-workspace-content'); // Rinominata per evitare conflitto
+    if (mainWorkspaceArea) {
+      connectionLabelContainer = document.createElement('div');
+      connectionLabelContainer.className = 'connection-labels-container'; // Aggiungi una classe se necessario per lo stile
+      connectionLabelContainer.style.position = 'absolute';
+      connectionLabelContainer.style.top = '0';
+      connectionLabelContainer.style.left = '0';
+      connectionLabelContainer.style.width = '100%';
+      connectionLabelContainer.style.height = '100%';
+      connectionLabelContainer.style.pointerEvents = 'none'; // Per non interferire con altri eventi
+      mainWorkspaceArea.appendChild(connectionLabelContainer);
+      console.log('DEBUG_CONNECTION_LABEL: Contenitore etichette inizializzato e aggiunto al mainWorkspaceArea.');
+    } else {
+      console.error('initializeWorkflow: mainWorkspaceArea non trovato. Le etichette delle connessioni potrebbero non funzionare correttamente.');
+    }
   }
 }
 
@@ -470,18 +488,8 @@ function cleanupWorkflow() {
 
 // Gestisce lo zoom con la rotella del mouse
 function handleMouseWheel(e) {
-  console.log('DEBUG WHEEL: Evento wheel intercettato', {
-    deltaY: e.deltaY,
-    deltaMode: e.deltaMode,
-    clientX: e.clientX,
-    clientY: e.clientY,
-    ctrlKey: e.ctrlKey,
-    target: e.target.tagName + (e.target.id ? '#' + e.target.id : '') + (e.target.className ? '.' + e.target.className : '')
-  });
-  
   // Permetti lo zoom solo se non si sta trascinando una nota o altro elemento interattivo
   if (isDraggingCanvas || draggedNote || resizingNote || isDraggingMinimap) {
-    console.log('DEBUG WHEEL: Zoom bloccato perché sta trascinando qualcosa');
     return;
   }
   
@@ -491,7 +499,7 @@ function handleMouseWheel(e) {
   // Ottieni il workspace
   const workspace = document.getElementById('workflowWorkspace');
   if (!workspace) {
-    console.error('DEBUG WHEEL: Workspace non trovato per lo zoom');
+    console.error('Workspace non trovato per lo zoom');
     return;
   }
   
@@ -500,78 +508,71 @@ function handleMouseWheel(e) {
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
   
-  console.log('DEBUG WHEEL: Posizione mouse per zoom:', mouseX, mouseY);
-  
   // Calcola la posizione del mouse nelle coordinate del canvas
-  const oldMouseCanvasX = (mouseX - canvasOffsetX) / canvasScale;
-  const oldMouseCanvasY = (mouseY - canvasOffsetY) / canvasScale;
+  // Questo è il punto che deve rimanere fisso durante lo zoom
+  const mouseCanvasX = (mouseX - canvasOffsetX) / canvasScale;
+  const mouseCanvasY = (mouseY - canvasOffsetY) / canvasScale;
   
   // Determina la direzione dello zoom (positivo = zoom in, negativo = zoom out)
   const zoomDirection = -Math.sign(e.deltaY);
   
-  console.log('DEBUG WHEEL: Direzione zoom:', zoomDirection);
-  
   // Aggiorna il fattore di scala in base alla direzione dello zoom
-  // Aumentiamo la sensibilità dello zoom
-  const zoomFactor = 0.15; // Aumentato da 0.1 per maggiore sensibilità
-  let newScale;
+  const zoomFactor = 0.15; // Fattore di sensibilità dello zoom
   
+  // Calcola il nuovo fattore di scala
+  let newScale;
   if (zoomDirection > 0) {
-    // Zoom in
+    // Zoom in - aumenta la scala
     newScale = canvasScale * (1 + zoomFactor);
   } else {
-    // Zoom out
+    // Zoom out - diminuisci la scala
     newScale = canvasScale / (1 + zoomFactor);
   }
   
   // Limita la scala min/max
-  const boundedScale = Math.max(0.1, Math.min(5, newScale)); // Aumentato il limite massimo a 5
-  
-  console.log('DEBUG WHEEL: Nuovo fattore di scala:', boundedScale, 'da', canvasScale);
-  
-  // Memorizza la scala precedente per riferimento
   const oldScale = canvasScale;
-  
-  // Aggiorna la scala
+  const boundedScale = Math.max(0.1, Math.min(5, newScale));
   canvasScale = boundedScale;
   
-  // Calcola il nuovo offset per mantenere il punto sotto il mouse fermo
-  canvasOffsetX = mouseX - oldMouseCanvasX * canvasScale;
-  canvasOffsetY = mouseY - oldMouseCanvasY * canvasScale;
+  // PUNTO CHIAVE: Calcola i nuovi offset per mantenere il punto sotto il mouse fisso
+  // Formula: newOffset = mousePos - (mouseCanvasPos * newScale)
+  const newOffsetX = mouseX - (mouseCanvasX * canvasScale);
+  const newOffsetY = mouseY - (mouseCanvasY * canvasScale);
   
-  console.log('DEBUG WHEEL: Nuovi offset canvas:', canvasOffsetX, canvasOffsetY);
+  // Aggiorna gli offset del canvas
+  canvasOffsetX = newOffsetX;
+  canvasOffsetY = newOffsetY;
   
   // Mostra l'indicatore di posizione durante lo zoom
   const positionIndicator = document.getElementById('positionIndicator');
   if (positionIndicator) {
     positionIndicator.classList.add('visible');
-    // Aggiorna il testo dell'indicatore
-    positionIndicator.textContent = `Centro: (varie) | Zoom: ${Math.round(canvasScale * 100)}%`;
+    positionIndicator.textContent = `Zoom: ${Math.round(canvasScale * 100)}%`;
   }
   
   // Applica immediatamente la trasformazione al canvas per feedback visivo immediato
   const workspaceContent = document.getElementById('workflowContent');
   if (workspaceContent) {
     workspaceContent.style.transform = `translate(${canvasOffsetX}px, ${canvasOffsetY}px) scale(${canvasScale})`;
-    console.log('DEBUG WHEEL: Trasformazione applicata al workspaceContent');
   }
   
-  // Aggiorna le trasformazioni solo se il fattore di scala è cambiato significativamente
-  // Questo riduce il numero di aggiornamenti delle connessioni durante lo zoom continuo
+  // Aggiorna completamente solo se il fattore di scala è cambiato significativamente
   if (Math.abs(oldScale - canvasScale) > 0.01) {
     // Aggiorna la trasformazione del canvas completamente
-  updateCanvasTransform();
+    updateCanvasTransform();
     
     // Aggiorna le connessioni solo dopo che lo zoom è stato completato
-    // Questo evita aggiornamenti eccessivi delle connessioni durante lo zoom continuo
     clearTimeout(window.connectionsUpdateTimeout);
     window.connectionsUpdateTimeout = setTimeout(() => {
-      console.log('DEBUG WHEEL: Aggiornamento delle connessioni dopo zoom');
       updateAllConnections();
-    }, 100); // Piccolo ritardo per migliorare le prestazioni
+      updateAllConnectionLabels();
+      
+      // Se c'è una connessione selezionata, aggiorna anche la sua floating bar
+      if (selectedConnectionId) {
+        showConnectionFloatingBar(selectedConnectionId);
+      }
+    }, 50); // Ridotto il ritardo per migliorare la reattività
   }
-  
-  console.log('DEBUG WHEEL: Zoom completato con successo');
   
   // Nascondi l'indicatore di posizione dopo un breve ritardo
   clearTimeout(window.positionIndicatorTimeout);
@@ -593,50 +594,63 @@ function updateCanvasTransform() {
     return;
   }
   
-  console.log('Aggiorno la trasformazione del canvas', {
-    canvasScale,
-    canvasOffsetX,
-    canvasOffsetY
-  });
-  
   const workspaceWidth = workspace.clientWidth;
   const workspaceHeight = workspace.clientHeight;
-  const scaledContentWidth = 10000 * canvasScale; // Larghezza reale del contenuto canvas scalato
-  const scaledContentHeight = 10000 * canvasScale; // Altezza reale del contenuto canvas scalato
+  const scaledContentWidth = 10000 * canvasScale; // Larghezza del contenuto canvas scalato
+  const scaledContentHeight = 10000 * canvasScale; // Altezza del contenuto canvas scalato
+
+  // Salva gli offset originali prima di applicare i limiti
+  const originalOffsetX = canvasOffsetX;
+  const originalOffsetY = canvasOffsetY;
 
   // Applica limiti di panning migliorati
+  // Per evitare di poter trascinare il canvas troppo lontano dai confini
   if (scaledContentWidth > workspaceWidth) {
-    // Il contenuto è più largo della viewport
+    // Il contenuto è più largo della viewport - limita il panning orizzontale
     canvasOffsetX = Math.max(workspaceWidth - scaledContentWidth, Math.min(0, canvasOffsetX));
   } else {
-    // Il contenuto è più stretto o uguale alla viewport
-    // Permetti di muoverlo da 0 a (workspaceWidth - scaledContentWidth)
-    canvasOffsetX = Math.max(0, Math.min(workspaceWidth - scaledContentWidth, canvasOffsetX));
+    // Il contenuto è più stretto o uguale alla viewport - centra orizzontalmente
+    canvasOffsetX = Math.round((workspaceWidth - scaledContentWidth) / 2);
   }
 
   if (scaledContentHeight > workspaceHeight) {
-    // Il contenuto è più alto della viewport
+    // Il contenuto è più alto della viewport - limita il panning verticale
     canvasOffsetY = Math.max(workspaceHeight - scaledContentHeight, Math.min(0, canvasOffsetY));
   } else {
-    // Il contenuto è più basso o uguale alla viewport
-    // Permetti di muoverlo da 0 a (workspaceHeight - scaledContentHeight)
-    canvasOffsetY = Math.max(0, Math.min(workspaceHeight - scaledContentHeight, canvasOffsetY));
+    // Il contenuto è più basso o uguale alla viewport - centra verticalmente
+    canvasOffsetY = Math.round((workspaceHeight - scaledContentHeight) / 2);
   }
+
+  // Verifica se gli offset sono stati modificati a causa dei limiti
+  const offsetsChanged = originalOffsetX !== canvasOffsetX || originalOffsetY !== canvasOffsetY;
 
   if (workspace && workspaceContent) {
     // Applica la trasformazione al contenitore del canvas
     workspaceContent.style.transform = `translate(${canvasOffsetX}px, ${canvasOffsetY}px) scale(${canvasScale})`;
-    workspaceContent.style.transformOrigin = '0 0';
+    workspaceContent.style.transformOrigin = '0 0'; // Mantieni l'origine della trasformazione in alto a sinistra
     
-    // Aggiorna l'indicatore di posizione usando la funzione dedicata
+    // Aggiorna l'indicatore di posizione
     updatePositionIndicator();
     
     // Aggiorna la minimappa
     updateMinimap();
     
-    // IMPORTANTE: Aggiorna tutte le connessioni per assicurarsi che seguano il canvas
-    // Questo risolve il problema delle connessioni che non seguono le note durante lo spostamento
+    // Se gli offset sono stati modificati dai limiti, aggiorna tutte le connessioni immediatamente
+    if (offsetsChanged) {
       updateAllConnections();
+      updateAllConnectionLabels();
+    } else {
+      // Altrimenti, aggiorna le connessioni in modo schedulato per prestazioni migliori
+      scheduleConnectionsUpdate();
+      
+      // Aggiorna anche tutte le etichette
+      updateAllConnectionLabels();
+    }
+    
+    // Se c'è una connessione selezionata, aggiorna la sua floating bar
+    if (selectedConnectionId) {
+      showConnectionFloatingBar(selectedConnectionId);
+    }
   }
 }
 
@@ -771,118 +785,59 @@ function updateMinimap() {
 
 // Aggiorna la rappresentazione delle note nella minimappa
 function updateMinimapNotes() {
-  const minimap = document.querySelector('.workflow-minimap-content');
-  if (!minimap) return;
-  
+  const minimapContent = document.querySelector('.workflow-minimap-content');
+  const workspace = document.getElementById('workflowWorkspace');
+
+  if (!minimapContent || !workspace) {
+    console.warn('updateMinimapNotes: minimapContent o workspace non trovati');
+    return;
+  }
+
   // Rimuovi tutte le rappresentazioni precedenti
-  const oldMinimapNotes = minimap.querySelectorAll('.minimap-note');
-  oldMinimapNotes.forEach(note => note.remove());
-  
+  minimapContent.querySelectorAll('.minimap-note-representation').forEach(noteRep => noteRep.remove());
+
   // Ottieni tutte le note nel workspace
   const notes = document.querySelectorAll('.workspace-note');
   
+  // Dimensioni del canvas intero (per calcolare minimapRatio se non disponibile globalmente)
+  const canvasFullWidth = 10000;
+  const canvasFullHeight = 10000;
+  
+  // Dimensioni della minimappa (dal CSS o hardcoded come in updateMinimap)
+  const minimapDisplayWidth = 220; 
+  const minimapDisplayHeight = 140;
+  
+  // Calcola minimapRatio (lo stesso di updateMinimap)
+  const minimapRatio = Math.min(minimapDisplayWidth / canvasFullWidth, minimapDisplayHeight / canvasFullHeight);
+
   notes.forEach(note => {
-    const posX = Math.round((viewportWidth / 2 - canvasOffsetX) / canvasScale);
-    const posY = Math.round((viewportHeight / 2 - canvasOffsetY) / canvasScale);
-    
-    // Questa sarà la nuova posizione predefinita per le prossime note
-    lastNotePosition = { x: posX + 50, y: posY + 50 };
+    // Leggi trasformazione e dimensioni della nota originale
+    const transform = note.style.transform;
+    const originalX = extractTranslateX(transform); // Assume che le note usino translate(Xpx, Ypx)
+    const originalY = extractTranslateY(transform);
+    const originalWidth = note.offsetWidth;
+    const originalHeight = note.offsetHeight;
+
+    // Calcola la posizione e le dimensioni per la minimappa
+    // Le coordinate originalX/Y sono già nel sistema del canvas (non scalate da canvasScale qui)
+    const minimapNoteX = originalX * minimapRatio;
+    const minimapNoteY = originalY * minimapRatio;
+    const minimapNoteWidth = originalWidth * minimapRatio;
+    const minimapNoteHeight = originalHeight * minimapRatio;
+
+    // Crea l'elemento di rappresentazione per la minimappa
+    const minimapNoteRep = document.createElement('div');
+    minimapNoteRep.className = 'minimap-note-representation';
+    minimapNoteRep.style.position = 'absolute'; // Le note nella minimappa saranno posizionate assolutamente
+    minimapNoteRep.style.left = `${minimapNoteX}px`;
+    minimapNoteRep.style.top = `${minimapNoteY}px`;
+    minimapNoteRep.style.width = `${minimapNoteWidth}px`;
+    minimapNoteRep.style.height = `${minimapNoteHeight}px`;
+    minimapNoteRep.style.backgroundColor = 'rgba(100, 100, 255, 0.5)'; // Stile di debug per visibilità
+    minimapNoteRep.style.border = '1px solid rgba(50, 50, 150, 0.7)';
+
+    minimapContent.appendChild(minimapNoteRep);
   });
-  
-  // Impostiamo la posizione usando translate per migliori performance
-  note.style.transform = `translate(${posX}px, ${posY}px)`;
-  
-  // Imposta larghezza e altezza
-  note.style.width = '300px';
-  note.style.height = '200px';
-  
-  // Aggiunge l'intestazione alla nota
-  const noteHeader = document.createElement('div');
-  noteHeader.className = 'note-header';
-  note.appendChild(noteHeader);
-  
-  // Aggiunge il titolo della nota all'intestazione
-  const titleElement = document.createElement('div');
-  titleElement.className = 'note-title';
-  titleElement.contentEditable = 'true';
-  titleElement.setAttribute('spellcheck', 'false');
-  titleElement.setAttribute('data-placeholder', 'Titolo nota');
-  
-  // Genera un titolo predefinito
-  noteCounter++;
-  titleElement.textContent = `Nota ${noteCounter}`;
-  noteTitles[noteId] = titleElement.textContent;
-  
-  // Aggiungi l'evento per modificare il titolo
-  setupNoteTitleEditing(titleElement, noteId);
-  
-  noteHeader.appendChild(titleElement);
-  
-  // Aggiungi il pulsante per entrare nella modalità documento
-  const noteActions = document.createElement('div');
-  noteActions.className = 'note-actions';
-  
-  const expandButton = document.createElement('button');
-  expandButton.className = 'note-action';
-  expandButton.innerHTML = '<i class="fas fa-expand-alt"></i>';
-  expandButton.title = 'Espandi';
-  expandButton.addEventListener('click', (e) => {
-    e.stopPropagation();
-    enterDocumentMode(note);
-  });
-  
-  noteActions.appendChild(expandButton);
-  noteHeader.appendChild(noteActions);
-  
-  // Aggiungi la maniglia di ridimensionamento
-  const resizeHandle = document.createElement('div');
-  resizeHandle.className = 'note-resize-handle';
-  resizeHandle.innerHTML = '<i class="fas fa-grip-lines-diagonal"></i>';
-  note.appendChild(resizeHandle);
-  
-  // Aggiunge il contenuto della nota
-  const noteContent = document.createElement('div');
-  noteContent.className = 'note-content';
-  note.appendChild(noteContent);
-  
-  // Aggiungi un blocco di default
-  const defaultBlock = document.createElement('div');
-  defaultBlock.className = 'note-block';
-  defaultBlock.id = `block-${Date.now()}`;
-  
-  const blockContent = document.createElement('div');
-  blockContent.className = 'block-content';
-  blockContent.contentEditable = 'true';
-  blockContent.setAttribute('data-placeholder', 'Scrivi qui...');
-  blockContent.addEventListener('input', handleNoteContentEdit);
-  
-  defaultBlock.appendChild(blockContent);
-  noteContent.appendChild(defaultBlock);
-  
-  // Aggiungi la nota al workspace
-  workspaceContent.appendChild(note);
-  
-  // Imposta la nota come attiva
-  setActiveNote(noteId);
-  
-  // Aggiungi gli event handlers
-  setupNoteEventHandlers(note);
-  
-  // Aggiungi i connection ports
-  setupConnectionPorts(note);
-  
-  // Aggiungi event listener per la maniglia di ridimensionamento
-  resizeHandle.addEventListener('mousedown', function(e) {
-    handleNoteResizeStart(e);
-  });
-  
-  // Inizializza i pulsanti "Aggiungi tra" per questa nota
-  initializeAddBetweenButtons(note);
-  
-  // Salva lo stato iniziale della nota
-  saveNoteState(noteId);
-  
-  return note;
 }
 
 // Gestisce le modifiche al contenuto delle note
@@ -1317,14 +1272,42 @@ function saveNoteState(noteId) {
 
 // Funzione di supporto per estrarre translateX dal transform
 function extractTranslateX(transform) {
-  const match = transform.match(/translate\(([^,]+)px,[^)]+\)/);
-  return match ? parseFloat(match[1]) : 0;
+  if (!transform) return 0;
+  
+  // Verifica se è nel formato translate(x,y)
+  const translateMatch = transform.match(/translate\(([^,]+)px,[^)]+\)/);
+  if (translateMatch) {
+    return parseFloat(translateMatch[1]);
+  }
+  
+  // Verifica se è nel formato matrix(a,b,c,d,x,y)
+  const matrixMatch = transform.match(/matrix\([^,]+,[^,]+,[^,]+,[^,]+,\s*([^,]+),/);
+  if (matrixMatch) {
+    return parseFloat(matrixMatch[1]);
+  }
+  
+  console.warn('DEBUG_TRANSFORM: Formato transform non riconosciuto per X:', transform);
+  return 0;
 }
 
 // Funzione di supporto per estrarre translateY dal transform
 function extractTranslateY(transform) {
-  const match = transform.match(/translate\([^,]+px,\s*([^)]+)px\)/);
-  return match ? parseFloat(match[1]) : 0;
+  if (!transform) return 0;
+  
+  // Verifica se è nel formato translate(x,y)
+  const translateMatch = transform.match(/translate\([^,]+px,\s*([^)]+)px\)/);
+  if (translateMatch) {
+    return parseFloat(translateMatch[1]);
+  }
+  
+  // Verifica se è nel formato matrix(a,b,c,d,x,y)
+  const matrixMatch = transform.match(/matrix\([^,]+,[^,]+,[^,]+,[^,]+,[^,]+,\s*([^)]+)\)/);
+  if (matrixMatch) {
+    return parseFloat(matrixMatch[1]);
+  }
+  
+  console.warn('DEBUG_TRANSFORM: Formato transform non riconosciuto per Y:', transform);
+  return 0;
 }
 
 // Funzioni di conversione tra tipi di blocchi
@@ -1636,6 +1619,9 @@ let connectionStartElement = null;
 let connectionStartPort = null;
 let connectionPath = null;
 let connections = [];
+let selectedConnectionId = null; // ID della connessione selezionata
+let connectionFloatingBar = null; // Riferimento alla floating bar delle connessioni
+let connectionLabelContainer = null; // Contenitore per l'etichetta della connessione
 
 // Gestisce l'inizio di una connessione
 function handleConnectionStart(e) {
@@ -1683,7 +1669,7 @@ function createConnectionPath() {
     svg.style.top = '0';
     svg.style.left = '0';
     svg.style.pointerEvents = 'none';
-    svg.style.zIndex = '5';
+    svg.style.zIndex = '15'; // Aumentato z-index per essere sopra le note
     connectionsContainer.appendChild(svg);
   }
   
@@ -1770,52 +1756,145 @@ function handleConnectionMove(e) {
 }
 
 // Aggiorna il path della connessione
-function updateConnectionPath(startX, startY, endX, endY) {
+function updateConnectionPath(startX, startY, endX, endY, positions = null) {
   if (!connectionPath) return;
   
-  // Calcola i punti di controllo per la curva di Bezier
-  const position = connectionStartPort.getAttribute('data-position');
-  let controlPoint1X, controlPoint1Y, controlPoint2X, controlPoint2Y;
+  // Ottieni le posizioni delle porte se non fornite (per nuove connessioni in fase di trascinamento)
+  let startPosition = positions?.startPosition || connectionStartPort?.getAttribute('data-position') || 'right';
+  let endPosition = positions?.endPosition || 'left';  // Valore di default per la fase di trascinamento
   
-  // Distanza di controllo per la curva
-  const distance = Math.min(150, Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2)) * 0.5);
+  // Punti di inizio e fine
+  const startPoint = { x: startX, y: startY };
+  const endPoint = { x: endX, y: endY };
   
-  // Adatta i punti di controllo in base alla posizione della porta di origine
-  switch (position) {
-    case 'top':
-      controlPoint1X = startX;
-      controlPoint1Y = startY - distance;
-      controlPoint2X = endX;
-      controlPoint2Y = endY + distance;
-      break;
-    case 'right':
-      controlPoint1X = startX + distance;
-      controlPoint1Y = startY;
-      controlPoint2X = endX - distance;
-      controlPoint2Y = endY;
-      break;
-    case 'bottom':
-      controlPoint1X = startX;
-      controlPoint1Y = startY + distance;
-      controlPoint2X = endX;
-      controlPoint2Y = endY - distance;
-      break;
-    case 'left':
-      controlPoint1X = startX - distance;
-      controlPoint1Y = startY;
-      controlPoint2X = endX + distance;
-      controlPoint2Y = endY;
-      break;
-    default:
-      controlPoint1X = startX;
-      controlPoint1Y = startY;
-      controlPoint2X = endX;
-      controlPoint2Y = endY;
+  // Distanza base per i punti di controllo (regolabile in base alla lunghezza)
+  const baseDistance = 100; // Distanza base in pixel
+  const directDistance = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+  
+  // Calcola la distanza di controllo adattiva
+  // Se la distanza è breve, usiamo un valore minimo; se è lunga, aumentiamo proporzionalmente
+  // ma limitiamo a un massimo per evitare curve eccessive
+  const controlDistance = Math.max(50, Math.min(baseDistance, directDistance * 0.4));
+  
+  // Calcolo della distanza minima dagli elementi (10px come richiesto)
+  const minElementDistance = 10;
+  
+  // Direzione vettoriale dalla porta di partenza
+  let directionX1 = 0;
+  let directionY1 = 0;
+  
+  // Direzione vettoriale verso la porta di arrivo
+  let directionX2 = 0;
+  let directionY2 = 0;
+  
+  // Calcola le direzioni in base alle posizioni delle porte
+  switch (startPosition) {
+    case 'top': directionX1 = 0; directionY1 = -1; break;
+    case 'right': directionX1 = 1; directionY1 = 0; break;
+    case 'bottom': directionX1 = 0; directionY1 = 1; break;
+    case 'left': directionX1 = -1; directionY1 = 0; break;
   }
   
-  // Crea il path
-  const d = `M ${startX} ${startY} C ${controlPoint1X} ${controlPoint1Y}, ${controlPoint2X} ${controlPoint2Y}, ${endX} ${endY}`;
+  switch (endPosition) {
+    case 'top': directionX2 = 0; directionY2 = -1; break;
+    case 'right': directionX2 = 1; directionY2 = 0; break;
+    case 'bottom': directionX2 = 0; directionY2 = 1; break;
+    case 'left': directionX2 = -1; directionY2 = 0; break;
+  }
+  
+  // Calcola punti di controllo per una curva Bezier cubica fluida
+  // Moltiplichiamo per controlDistance per estendere i punti di controllo nella direzione giusta
+  let controlPoint1X = startX + directionX1 * controlDistance;
+  let controlPoint1Y = startY + directionY1 * controlDistance;
+  let controlPoint2X = endX + directionX2 * controlDistance;
+  let controlPoint2Y = endY + directionY2 * controlDistance;
+  
+  // Controlla l'orientamento relativo delle connessioni e adatta i punti di controllo
+  // per evitare curve strane in casi particolari
+  const horizontalConnection = (startPosition === 'left' || startPosition === 'right') && 
+                               (endPosition === 'left' || endPosition === 'right');
+  const verticalConnection = (startPosition === 'top' || startPosition === 'bottom') && 
+                             (endPosition === 'top' || endPosition === 'bottom');
+  
+  // Adattamento specifico per connessioni su stesso asse
+  let adjustedCP1X = controlPoint1X;
+  let adjustedCP1Y = controlPoint1Y;
+  let adjustedCP2X = controlPoint2X;
+  let adjustedCP2Y = controlPoint2Y;
+  
+  if (horizontalConnection) {
+    // Per connessioni orizzontali, aggiungi un offset verticale ai punti di controllo
+    // per creare una curva più naturale e evitare linee dritte
+    const verticalOffset = Math.min(80, directDistance * 0.25);
+    const direction = Math.sign(endY - startY) || 1; // Default a 1 se sono allineati
+    
+    adjustedCP1Y = controlPoint1Y + (verticalOffset * direction);
+    adjustedCP2Y = controlPoint2Y + (verticalOffset * direction);
+  } else if (verticalConnection) {
+    // Per connessioni verticali, aggiungi un offset orizzontale
+    const horizontalOffset = Math.min(80, directDistance * 0.25);
+    const direction = Math.sign(endX - startX) || 1; // Default a 1 se sono allineati
+    
+    adjustedCP1X = controlPoint1X + (horizontalOffset * direction);
+    adjustedCP2X = controlPoint2X + (horizontalOffset * direction);
+  }
+  
+  // Controlla collisioni con elementi del workspace
+  const cp1 = { x: adjustedCP1X, y: adjustedCP1Y };
+  const cp2 = { x: adjustedCP2X, y: adjustedCP2Y };
+  
+  // Ottieni i bounding box degli elementi collegati per escluderli dalla collisione
+  let connectedElementsIds = [];
+  
+  if (positions && positions.startElementBox && positions.endElementBox) {
+    // Per connessioni esistenti, otteniamo gli ID direttamente dai parametri
+    if (positions.startElementId) connectedElementsIds.push(positions.startElementId);
+    if (positions.endElementId) connectedElementsIds.push(positions.endElementId);
+  } else if (connectionStartElement) {
+    // Per connessioni in fase di creazione, usiamo le variabili globali
+    connectedElementsIds.push(connectionStartElement.id);
+  }
+  
+  // Verifica collisioni ed eventualmente modifica i punti di controllo per evitarle
+  const intersectingElements = checkConnectionCollisions(startPoint, endPoint, cp1, cp2);
+  if (intersectingElements.length > 0) {
+    // Filtra gli elementi che non sono collegati alla connessione
+    const obstacleElements = intersectingElements.filter(intersection => 
+      !connectedElementsIds.includes(intersection.element.id)
+    );
+    
+    if (obstacleElements.length > 0) {
+      // Adatta i punti di controllo per evitare gli ostacoli
+      // Qui una semplice strategia: aumenta la curvatura per aggirare l'ostacolo
+      const increasedDistance = controlDistance * 1.5;
+      
+      if (horizontalConnection || Math.abs(endY - startY) > Math.abs(endX - startX)) {
+        // Per connessioni prevalentemente verticali, allarga lateralmente
+        const horizontalOffset = increasedDistance;
+        const direction = Math.sign(endX - startX) || 1;
+        
+        adjustedCP1X = controlPoint1X + (horizontalOffset * direction);
+        adjustedCP2X = controlPoint2X + (horizontalOffset * direction);
+      } else {
+        // Per connessioni prevalentemente orizzontali, allarga verticalmente
+        const verticalOffset = increasedDistance;
+        const direction = Math.sign(endY - startY) || 1;
+        
+        adjustedCP1Y = controlPoint1Y + (verticalOffset * direction);
+        adjustedCP2Y = controlPoint2Y + (verticalOffset * direction);
+      }
+    }
+  }
+  
+  // Genera il path SVG per la curva di Bezier
+  const d = `M ${startX} ${startY} C ${adjustedCP1X} ${adjustedCP1Y}, ${adjustedCP2X} ${adjustedCP2Y}, ${endX} ${endY}`;
   connectionPath.setAttribute('d', d);
+  
+  // Memorizza i dati per debugging e per calcolo della posizione delle etichette
+  connectionPath.setAttribute('data-cp1x', adjustedCP1X);
+  connectionPath.setAttribute('data-cp1y', adjustedCP1Y);
+  connectionPath.setAttribute('data-cp2x', adjustedCP2X);
+  connectionPath.setAttribute('data-cp2y', adjustedCP2Y);
 }
 
 // Miglioro la funzione highlightValidPorts per evidenziare meglio i port disponibili
@@ -1867,19 +1946,39 @@ function handleConnectionEnd(e) {
   
   console.log('Elementi sotto il punto di rilascio:', elementsAtPoint.map(el => el.tagName + (el.id ? '#' + el.id : '') + (el.className ? '.' + el.className : '')));
   
-  const portElement = elementsAtPoint.find(el => el.classList && (
-    el.classList.contains('connection-port') || 
-    (el.parentElement && el.parentElement.classList && el.parentElement.classList.contains('connection-port'))
-  ));
+  // Trova il connection-dot o il connection-port sotto il punto di rilascio
+  const dotElement = elementsAtPoint.find(el => 
+    el.classList && el.classList.contains('connection-dot') || 
+    (el.parentElement && el.parentElement.classList && el.parentElement.classList.contains('connection-dot'))
+  );
   
-  if (portElement) {
-    console.log('Port element trovato:', portElement);
+  const portElement = elementsAtPoint.find(el => 
+    el.classList && el.classList.contains('connection-port') || 
+    (el.parentElement && el.parentElement.classList && el.parentElement.classList.contains('connection-port'))
+  );
+  
+  // Priorità al dot se trovato
+  const targetElement = dotElement || portElement;
+  
+  if (targetElement) {
+    // Determina il port appropriato
+    let endPort;
     
-    const endPort = portElement.classList.contains('connection-port') ? 
-                    portElement : 
-                    portElement.parentElement;
+    if (targetElement.classList.contains('connection-dot')) {
+      // Se abbiamo trovato direttamente il dot, il port è il genitore
+      endPort = targetElement.closest('.connection-port');
+    } else if (targetElement.classList.contains('connection-port')) {
+      // Se abbiamo trovato il port, usalo direttamente
+      endPort = targetElement;
+    } else if (targetElement.parentElement.classList.contains('connection-dot')) {
+      // Se abbiamo trovato un elemento figlio del dot, risali al port
+      endPort = targetElement.closest('.connection-port');
+    } else if (targetElement.parentElement.classList.contains('connection-port')) {
+      // Se abbiamo trovato un elemento figlio del port, usa il genitore
+      endPort = targetElement.parentElement;
+    }
     
-    console.log('End port:', endPort);
+    console.log('End port trovato:', endPort);
     
     if (endPort && endPort !== connectionStartPort) {
       const endElement = endPort.closest('.workspace-note, .workspace-ai-node');
@@ -1888,11 +1987,15 @@ function handleConnectionEnd(e) {
       
       if (endElement && endElement !== connectionStartElement) {
         console.log('Creando connessione tra:', connectionStartElement.id, 'e', endElement.id);
+        
         // Crea una connessione permanente
         const newConnection = createPermanentConnection(connectionStartElement, connectionStartPort, endElement, endPort);
         
         if (newConnection) {
           console.log('Connessione creata con successo:', newConnection.id);
+          
+          // Seleziona immediatamente la nuova connessione per mostrare la floating bar
+          selectConnection(newConnection.id);
         } else {
           console.error('Errore nella creazione della connessione');
           // Se la creazione fallisce ma abbiamo un path temporaneo, rimuoviamolo
@@ -1906,14 +2009,8 @@ function handleConnectionEnd(e) {
         connectionStartElement = null;
         connectionStartPort = null;
         return;
-      } else {
-        console.log('End element non valido o uguale a start element');
       }
-    } else {
-      console.log('End port non valido o uguale a start port');
     }
-  } else {
-    console.log('Nessun port element trovato sotto il punto di rilascio');
   }
   
   // Se arriviamo qui, il rilascio non è avvenuto su un port valido
@@ -1942,8 +2039,8 @@ function createPermanentConnection(startElement, startPort, endElement, endPort)
     return null;
   }
   
-  // Controlla se esiste già una connessione tra questi due punti
-  const existingConnection = connections.find(conn => 
+  // Controlla se esiste già una connessione diretta tra questi due punti specifici
+  const existingDirectConnection = connections.find(conn => 
     (conn.startElementId === startElement.id && conn.startPortPosition === startPort.getAttribute('data-position') &&
      conn.endElementId === endElement.id && conn.endPortPosition === endPort.getAttribute('data-position')) ||
     (conn.startElementId === endElement.id && conn.startPortPosition === endPort.getAttribute('data-position') &&
@@ -1951,8 +2048,8 @@ function createPermanentConnection(startElement, startPort, endElement, endPort)
   );
 
   // Se esiste già una connessione identica, non ne creare un'altra
-  if (existingConnection) {
-    console.log('Connessione già esistente, annullo creazione');
+  if (existingDirectConnection) {
+    console.log('Connessione identica già esistente, annullo creazione');
     // Annulla la creazione e rimuovi il path temporaneo
     if (connectionPath) {
       connectionPath.remove();
@@ -1984,7 +2081,7 @@ function createPermanentConnection(startElement, startPort, endElement, endPort)
     svg.style.top = '0';
     svg.style.left = '0';
     svg.style.pointerEvents = 'none';
-    svg.style.zIndex = '5';
+    svg.style.zIndex = '5'; // Sotto gli elementi ma sopra il background
     connectionsContainer.appendChild(svg);
   }
   
@@ -2004,7 +2101,7 @@ function createPermanentConnection(startElement, startPort, endElement, endPort)
     }
   }
   
-  // Crea un ID univoco per la connessione che include anche gli ID degli elementi
+  // Crea un ID univoco per la connessione
   const connectionId = `connection-${startElement.id}-${startPort.getAttribute('data-position')}-${endElement.id}-${endPort.getAttribute('data-position')}-${Date.now()}`;
   
   // Crea un oggetto per rappresentare la connessione
@@ -2014,7 +2111,16 @@ function createPermanentConnection(startElement, startPort, endElement, endPort)
     startPortPosition: startPort.getAttribute('data-position'),
     endElementId: endElement.id,
     endPortPosition: endPort.getAttribute('data-position'),
-    path: connectionPath
+    path: connectionPath,
+    label: '', // Campo per l'etichetta della connessione
+    labelElement: null, // Riferimento all'elemento DOM per l'etichetta
+    style: {  // Stile predefinito della connessione
+      index: 0,
+      stroke: '#4a4dff',
+      strokeWidth: '2',
+      dashArray: 'none',
+      opacity: '1'
+    }
   };
   
   // Aggiungi attributi al path per identificare la connessione
@@ -2024,10 +2130,17 @@ function createPermanentConnection(startElement, startPort, endElement, endPort)
   connectionPath.setAttribute('data-end-element', connection.endElementId);
   connectionPath.setAttribute('data-end-port', connection.endPortPosition);
   connectionPath.setAttribute('class', 'connection-path');
+  connectionPath.setAttribute('data-style-index', '0'); // Stile iniziale
   
   // Aggiungi interattività al path
   connectionPath.style.pointerEvents = 'auto';
   connectionPath.style.cursor = 'pointer';
+  
+  // Aggiungi event listener per la selezione della connessione con click singolo
+  connectionPath.addEventListener('click', (e) => {
+    e.stopPropagation(); // Previene che l'evento si propaghi
+    selectConnection(connection.id);
+  });
   
   // Aggiungi event listener per eliminare la connessione con doppio click
   connectionPath.addEventListener('dblclick', (e) => {
@@ -2036,7 +2149,7 @@ function createPermanentConnection(startElement, startPort, endElement, endPort)
   });
   
   // Aggiungi tooltip alla connessione
-  connectionPath.setAttribute('title', 'Doppio click per eliminare la connessione');
+  connectionPath.setAttribute('title', 'Click per gestire, doppio click per eliminare');
   
   // Aggiungi la connessione all'array
   connections.push(connection);
@@ -2044,7 +2157,7 @@ function createPermanentConnection(startElement, startPort, endElement, endPort)
   // Forza aggiornamento della posizione della connessione per evitare che scompaia
   try {
     // Aggiorna subito la posizione della connessione
-  updateConnectionPosition(connection);
+    updateConnectionPosition(connection);
     
     // Per sicurezza, aggiorna nuovamente dopo un breve ritardo
     setTimeout(() => {
@@ -2066,6 +2179,9 @@ function createPermanentConnection(startElement, startPort, endElement, endPort)
   
   console.log(`Creata connessione ${connection.id} da ${connection.startElementId} (${connection.startPortPosition}) a ${connection.endElementId} (${connection.endPortPosition})`);
   
+  // Salva lo stato del workflow
+  saveWorkflowState(currentWorkflowId);
+
   return connection;
 }
 
@@ -2077,9 +2193,20 @@ function deleteConnection(connectionId) {
   if (connectionIndex >= 0) {
     const connection = connections[connectionIndex];
     
+    // Se questa è la connessione attualmente selezionata, nascondi la floating bar
+    if (selectedConnectionId === connectionId) {
+      hideConnectionFloatingBar();
+      selectedConnectionId = null;
+    }
+    
     // Rimuovi il path SVG dal DOM
     if (connection.path) {
       connection.path.remove();
+    }
+    
+    // Rimuovi l'elemento dell'etichetta se esiste
+    if (connection.labelElement) {
+      connection.labelElement.remove();
     }
     
     // Rimuovi la connessione dall'array
@@ -2087,8 +2214,8 @@ function deleteConnection(connectionId) {
     
     console.log(`Connessione ${connectionId} eliminata. Connessioni rimanenti: ${connections.length}`);
     
-    // Aggiorna tutte le altre connessioni
-    updateAllConnections();
+    // Salva lo stato del workflow
+    saveWorkflowState(currentWorkflowId);
     
     return true;
   }
@@ -2125,97 +2252,96 @@ function updateConnectionPosition(connection) {
   }
   
   try {
-    // Ottieni le coordinate dei port nel sistema di coordinate del documento
-    const startPortRect = startPort.getBoundingClientRect();
-    const endPortRect = endPort.getBoundingClientRect();
-  
-  const workspace = document.getElementById('workflowWorkspace');
-    if (!workspace) {
-      console.error('Workspace non trovato per l\'aggiornamento della connessione');
+    // Ottieni la posizione del workspace
+    const workspaceArea = document.getElementById('workflowWorkspace');
+    if (!workspaceArea) {
+      console.error('updateConnectionPosition: workflowWorkspace non trovato.');
       return;
     }
-  
-  const workspaceRect = workspace.getBoundingClientRect();
+    const workspaceAreaRect = workspaceArea.getBoundingClientRect();
+
+    // Ottieni i connection dots (i punti di connessione specifici)
+    const startDot = startPort.querySelector('.connection-dot');
+    const endDot = endPort.querySelector('.connection-dot');
     
-    // Calcola il centro dei port nel sistema di coordinate del viewport
-    const startXInDocument = startPortRect.left + startPortRect.width / 2;
-    const startYInDocument = startPortRect.top + startPortRect.height / 2;
-    const endXInDocument = endPortRect.left + endPortRect.width / 2;
-    const endYInDocument = endPortRect.top + endPortRect.height / 2;
+    // Calcola centro del punto di connessione di INIZIO
+    const startDotRect = startDot ? startDot.getBoundingClientRect() : startPort.getBoundingClientRect();
+    const startPortViewportCenterX = startDotRect.left + startDotRect.width / 2;
+    const startPortViewportCenterY = startDotRect.top + startDotRect.height / 2;
+    const startPortCenterX_relativeToWorkspaceArea = startPortViewportCenterX - workspaceAreaRect.left;
+    const startPortCenterY_relativeToWorkspaceArea = startPortViewportCenterY - workspaceAreaRect.top;
+    const startX = (startPortCenterX_relativeToWorkspaceArea - canvasOffsetX) / canvasScale;
+    const startY = (startPortCenterY_relativeToWorkspaceArea - canvasOffsetY) / canvasScale;
+
+    // Calcola centro del punto di connessione di FINE
+    const endDotRect = endDot ? endDot.getBoundingClientRect() : endPort.getBoundingClientRect();
+    const endPortViewportCenterX = endDotRect.left + endDotRect.width / 2;
+    const endPortViewportCenterY = endDotRect.top + endDotRect.height / 2;
+    const endPortCenterX_relativeToWorkspaceArea = endPortViewportCenterX - workspaceAreaRect.left;
+    const endPortCenterY_relativeToWorkspaceArea = endPortViewportCenterY - workspaceAreaRect.top;
+    const endX = (endPortCenterX_relativeToWorkspaceArea - canvasOffsetX) / canvasScale;
+    const endY = (endPortCenterY_relativeToWorkspaceArea - canvasOffsetY) / canvasScale;
     
-    // Calcola la posizione relativa al workspace
-    const startXRelativeToWorkspace = startXInDocument - workspaceRect.left;
-    const startYRelativeToWorkspace = startYInDocument - workspaceRect.top;
-    const endXRelativeToWorkspace = endXInDocument - workspaceRect.left;
-    const endYRelativeToWorkspace = endYInDocument - workspaceRect.top;
+    // Ottieni i bounding box degli elementi collegati per il controllo delle collisioni
+    const startElementRect = startElement.getBoundingClientRect();
+    const endElementRect = endElement.getBoundingClientRect();
     
-    // Converti in coordinate del canvas considerando sia la scala sia l'offset
-    const startX = (startXRelativeToWorkspace - canvasOffsetX) / canvasScale;
-    const startY = (startYRelativeToWorkspace - canvasOffsetY) / canvasScale;
-    const endX = (endXRelativeToWorkspace - canvasOffsetX) / canvasScale;
-    const endY = (endYRelativeToWorkspace - canvasOffsetY) / canvasScale;
+    // Converti i rettangoli in coordinate del canvas
+    const startElementBox = {
+      left: (startElementRect.left - workspaceAreaRect.left - canvasOffsetX) / canvasScale,
+      top: (startElementRect.top - workspaceAreaRect.top - canvasOffsetY) / canvasScale,
+      right: (startElementRect.right - workspaceAreaRect.left - canvasOffsetX) / canvasScale,
+      bottom: (startElementRect.bottom - workspaceAreaRect.top - canvasOffsetY) / canvasScale,
+      width: startElementRect.width / canvasScale,
+      height: startElementRect.height / canvasScale
+    };
     
-    // Calcola i punti di controllo per la curva di Bezier
-  // Distanza di controllo per la curva
-  const distance = Math.min(150, Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2)) * 0.5);
-  
-  let controlPoint1X, controlPoint1Y, controlPoint2X, controlPoint2Y;
-  
-  // Adatta i punti di controllo in base alla posizione della porta di origine
-  switch (connection.startPortPosition) {
-    case 'top':
-      controlPoint1X = startX;
-      controlPoint1Y = startY - distance;
-      break;
-    case 'right':
-      controlPoint1X = startX + distance;
-      controlPoint1Y = startY;
-      break;
-    case 'bottom':
-      controlPoint1X = startX;
-      controlPoint1Y = startY + distance;
-      break;
-    case 'left':
-      controlPoint1X = startX - distance;
-      controlPoint1Y = startY;
-      break;
-    default:
-      controlPoint1X = startX;
-      controlPoint1Y = startY;
-  }
-  
-  // Adatta i punti di controllo in base alla posizione della porta di destinazione
-  switch (connection.endPortPosition) {
-    case 'top':
-      controlPoint2X = endX;
-      controlPoint2Y = endY - distance;
-      break;
-    case 'right':
-      controlPoint2X = endX + distance;
-      controlPoint2Y = endY;
-      break;
-    case 'bottom':
-      controlPoint2X = endX;
-      controlPoint2Y = endY + distance;
-      break;
-    case 'left':
-      controlPoint2X = endX - distance;
-      controlPoint2Y = endY;
-      break;
-    default:
-      controlPoint2X = endX;
-      controlPoint2Y = endY;
-  }
-  
-  // Crea il path
-  const d = `M ${startX} ${startY} C ${controlPoint1X} ${controlPoint1Y}, ${controlPoint2X} ${controlPoint2Y}, ${endX} ${endY}`;
-    connection.path.setAttribute('d', d);
+    const endElementBox = {
+      left: (endElementRect.left - workspaceAreaRect.left - canvasOffsetX) / canvasScale,
+      top: (endElementRect.top - workspaceAreaRect.top - canvasOffsetY) / canvasScale,
+      right: (endElementRect.right - workspaceAreaRect.left - canvasOffsetX) / canvasScale,
+      bottom: (endElementRect.bottom - workspaceAreaRect.top - canvasOffsetY) / canvasScale,
+      width: endElementRect.width / canvasScale,
+      height: endElementRect.height / canvasScale
+    };
     
-    // Salvare le coordinate per il riutilizzo
+    // Passa le posizioni delle porte e delle informazioni sugli elementi per il calcolo dei punti di controllo
+    const positions = {
+      startPosition: connection.startPortPosition,
+      endPosition: connection.endPortPosition,
+      startElementBox: startElementBox,
+      endElementBox: endElementBox,
+      startElementId: connection.startElementId,
+      endElementId: connection.endElementId
+    };
+    
+    // Utilizza la funzione aggiornata per calcolare il path
+    updateConnectionPath(startX, startY, endX, endY, positions);
+    
+    // Memorizza le coordinate nei dati della connessione
     connection.path.setAttribute('data-start-x', startX);
     connection.path.setAttribute('data-start-y', startY);
     connection.path.setAttribute('data-end-x', endX);
     connection.path.setAttribute('data-end-y', endY);
+    
+    // Aggiorna la posizione della floating bar se questa connessione è selezionata
+    if (selectedConnectionId === connection.id && connectionFloatingBar) {
+      // Calcola il punto centrale della connessione per la floating bar
+      const pathLength = connection.path.getTotalLength();
+      const midPoint = connection.path.getPointAtLength(pathLength / 2);
+      
+      // Posiziona la floating bar
+      const barX = midPoint.x * canvasScale + workspaceArea.scrollLeft;
+      const barY = midPoint.y * canvasScale + workspaceArea.scrollTop;
+      
+      connectionFloatingBar.style.left = `${barX}px`;
+      connectionFloatingBar.style.top = `${barY}px`;
+    }
+    
+    // Aggiorna la posizione dell'etichetta se presente
+    if (connection.labelElement && connection.label) {
+      updateLabelPosition(connection);
+    }
     
   } catch (error) {
     console.error('Errore durante l\'aggiornamento della connessione:', error);
@@ -2248,31 +2374,31 @@ function updateAllConnections() {
       const endElement = document.getElementById(connection.endElementId);
       
       if (!startElement || !endElement) {
-        console.warn(`Elementi non trovati per la connessione ${connection.id}, potrebbe essere una connessione nuova, tentiamo di conservarla`);
-        // Non eliminiamo subito le connessioni, potrebbero essere nuove connessioni che non hanno ancora completato l'inizializzazione
-        // Eliminiamo solo se entrambi gli elementi sono assenti
+        console.warn(`Elementi non trovati per la connessione ${connection.id}, elimino la connessione`);
+        // Se entrambi gli elementi sono mancanti, rimuovi la connessione
         if (!startElement && !endElement) {
+          if (connection.path) connection.path.remove();
+          if (connection.labelElement) connection.labelElement.remove();
           connections.splice(i, 1);
           i--; // Decrementa l'indice perché abbiamo rimosso un elemento
-    if (connection.path) {
-      connection.path.remove();
-          }
         }
         continue;
       }
       
-      // Aggiorna la posizione usando il nostro metodo migliorato
+      // Aggiorna la posizione usando il metodo migliorato
       updateConnectionPosition(connection);
+      
+      // Aggiorna anche la posizione dell'etichetta se presente
+      if (connection.labelElement) {
+        updateLabelPosition(connection);
+      }
+      
+      // Aggiorna la floating bar se questa connessione è selezionata
+      if (selectedConnectionId === connection.id && connectionFloatingBar) {
+        showConnectionFloatingBar(connection.id);
+      }
     } catch (error) {
       console.error(`Errore nell'aggiornamento della connessione ${i}:`, error);
-      // Non eliminiamo la connessione in caso di errore, per evitare che scompaia subito
-      // Commentiamo questa parte per prevenire l'eliminazione prematura
-      /*
-      if (connections[i] && connections[i].id) {
-        deleteConnection(connections[i].id);
-        i--; // Decrementa l'indice perché l'array è stato modificato
-      }
-      */
     }
   }
   
@@ -2630,9 +2756,18 @@ function handleCanvasMouseMove(e) {
     // Aggiorna l'indicatore di posizione
     updatePositionIndicator();
     
-    // Aggiorna IMMEDIATAMENTE le connessioni con ogni movimento del canvas
-    // Il debounce è stato rimosso per garantire che le connessioni seguano in tempo reale
-    updateAllConnections();
+    // Aggiorna le connessioni in modo schedulato
+    scheduleConnectionsUpdate();
+    
+    // Aggiorna anche le etichette delle connessioni
+    requestAnimationFrame(() => {
+      updateAllConnectionLabels();
+      
+      // Se c'è una connessione selezionata, aggiorna la sua floating bar
+      if (selectedConnectionId) {
+        showConnectionFloatingBar(selectedConnectionId);
+      }
+    });
   }
   
   e.preventDefault();
@@ -2667,6 +2802,9 @@ function handleCanvasMouseUp(e) {
   if (connections && connections.length > 0) {
     updateAllConnections();
   }
+  
+  // Aggiorna tutte le etichette
+  updateAllConnectionLabels();
   
   // Nascondi l'indicatore di posizione dopo un breve ritardo
   setTimeout(() => {
@@ -2810,21 +2948,30 @@ window.addEventListener('load', function() {
   console.log('Aggiungendo listener globale per gli eventi wheel...');
   
   // Aggiungi un listener globale per gli eventi wheel
-  document.addEventListener('wheel', function(e) {
-    console.log('DEBUG GLOBAL WHEEL: Evento wheel intercettato a livello di documento', {
-      deltaY: e.deltaY,
-      target: e.target.tagName + (e.target.id ? '#' + e.target.id : '') + (e.target.className ? '.' + e.target.className : ''),
-      timestamp: new Date().getTime()
-    });
+  document.addEventListener('wheel', (e) => {
+    // Solo se il workflow è attivo
+    if (!workflowActive) return;
     
-    // Non preveniamo il comportamento predefinito qui per evitare di interferire con il normale funzionamento
-    
-    // Verifica se l'evento è sul workspace
-    const workspace = document.getElementById('workflowWorkspace');
-    if (workspace && (e.target === workspace || workspace.contains(e.target))) {
-      console.log('DEBUG GLOBAL WHEEL: Evento sul workspace, dovrebbe essere gestito da handleMouseWheel');
+    // Ignora se siamo in un campo di input o in un elemento che gestisce lo scroll
+    if (e.target.closest('input, textarea, [contenteditable="true"], .scrollable-element')) return;
+        
+    if (!(isDraggingCanvas)) {
+      e.preventDefault();
+      
+      if (e.deltaY < 0) {
+        // Zoom in
+        console.log('Zoom in con wheel');
+        canvasScale = Math.min(canvasScale * 1.2, 5);
+      } else {
+        // Zoom out
+        console.log('Zoom out con wheel');
+        canvasScale = Math.max(canvasScale / 1.2, 0.1);
+      }
+      
+      updateCanvasTransform();
+      updateAllConnections();
     }
-  }, { passive: true }); // Usiamo passive: true per non bloccare lo scrolling normale
+  }, { passive: false });
   
   // Aggiungi un listener per i tasti + e - per lo zoom come alternativa
   document.addEventListener('keydown', function(e) {
@@ -2854,99 +3001,7 @@ window.addEventListener('load', function() {
     }
   });
   
-  // Aspetta un breve momento per assicurarsi che tutto sia inizializzato
-  setTimeout(debugAndFixWorkflowPanning, 1000);
-  
-  // Riprova più volte per sicurezza
-  setTimeout(debugAndFixWorkflowPanning, 2000);
-  setTimeout(debugAndFixWorkflowPanning, 5000);
-  
-  // Debug dello zoom
-  setTimeout(function() {
-    console.log('Verifica dello zoom...');
-    const workspace = document.getElementById('workflowWorkspace');
-    if (workspace) {
-      console.log('Zoom attuale:', canvasScale);
-      console.log('Riconfigurando listener per lo zoom...');
-      
-      // Rimuovi e riapplica l'event listener per lo zoom
-      workspace.removeEventListener('wheel', handleMouseWheel);
-  workspace.addEventListener('wheel', handleMouseWheel, { passive: false });
-  
-      // Verifica che i pulsanti dello zoom funzionino
-      const zoomInBtn = document.querySelector('.zoom-in-btn');
-      const zoomOutBtn = document.querySelector('.zoom-out-btn');
-      
-      if (zoomInBtn) {
-        console.log('Pulsante zoom in trovato, riconfigurando...');
-        zoomInBtn.addEventListener('click', () => {
-          console.log('Zoom in cliccato');
-          canvasScale = Math.min(canvasScale * 1.2, 5);
-          updateCanvasTransform();
-          updateAllConnections();
-        });
-      }
-      
-      if (zoomOutBtn) {
-        console.log('Pulsante zoom out trovato, riconfigurando...');
-        zoomOutBtn.addEventListener('click', () => {
-          console.log('Zoom out cliccato');
-          canvasScale = Math.max(canvasScale / 1.2, 0.1);
-          updateCanvasTransform();
-          updateAllConnections();
-        });
-      }
-    }
-  }, 3000);
-  
-  // Aggiungi un observer per monitorare quando viene attivata la modalità documento
-  setupDocumentModeObserver();
 });
-
-// Configura un MutationObserver per monitorare quando viene aggiunta la classe document-mode al body
-function setupDocumentModeObserver() {
-  const observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-      if (mutation.type === 'attributes' && 
-          mutation.attributeName === 'class' &&
-          document.body.classList.contains('document-mode')) {
-        
-        console.log('Modalità documento attivata, applicando correzioni per la titlebar');
-        
-        // Ottieni l'altezza della titlebar personalizzata
-        const titleBar = document.querySelector('.title-bar');
-        let titleBarHeight = 30; // Valore predefinito dalla title-bar.css
-        
-        if (titleBar) {
-          titleBarHeight = titleBar.offsetHeight;
-          console.log('Altezza della titlebar personalizzata rilevata:', titleBarHeight);
-        } else {
-          console.log('Titlebar personalizzata non trovata, uso altezza predefinita');
-        }
-        
-        // Applica correzioni per la titlebar dopo un breve ritardo
-        setTimeout(function() {
-          const overlay = document.querySelector('.document-mode-overlay');
-          if (overlay) {
-            // Sistema l'overlay in base all'altezza della titlebar personalizzata
-            overlay.style.top = `${titleBarHeight}px`;
-            overlay.style.height = `calc(100% - ${titleBarHeight}px)`;
-            overlay.style.maxHeight = `calc(100% - ${titleBarHeight}px)`;
-            
-            // Rimuovi eventuali padding-top per evitare doppi spazi
-            overlay.style.paddingTop = '0';
-            
-            console.log('Correzioni applicate all\'overlay del documento');
-          }
-        }, 50);
-      }
-    });
-  });
-  
-  // Osserva i cambiamenti all'attributo class del body
-  observer.observe(document.body, { attributes: true });
-  console.log('Observer per la modalità documento configurato');
-}
 
 // Funzione per creare una nuova nota
 function createNewNote(x, y) {
@@ -2993,6 +3048,7 @@ function createNewNote(x, y) {
   
   // Impostiamo la posizione usando translate per migliori performance
   note.style.transform = `translate(${x}px, ${y}px)`;
+  note.style.transformOrigin = '0 0';
   
   // Imposta larghezza e altezza
   note.style.width = '300px';
@@ -3045,6 +3101,9 @@ function createNewNote(x, y) {
   resizeHandle.className = 'note-resize-handle';
   resizeHandle.innerHTML = '<i class="fas fa-grip-lines-diagonal"></i>';
   note.appendChild(resizeHandle);
+  
+  // Aggiungi le maniglie di ridimensionamento aggiuntive
+  addResizeHandlesToNote(note);
   
   // Aggiunge il contenuto della nota
   const noteContent = document.createElement('div');
@@ -3219,6 +3278,19 @@ function setupNoteEventHandlers(note) {
       }
     });
   }
+  
+  // Aggiungi gli event listener per tutte le maniglie di ridimensionamento
+  const resizeHandles = note.querySelectorAll('.resize-handle, .note-resize-handle');
+  resizeHandles.forEach(handle => {
+    handle.addEventListener('mousedown', function(e) {
+      // Previeni la propagazione per evitare conflitti con altri handler
+      e.stopPropagation();
+      e.preventDefault();
+      
+      // Inizia il ridimensionamento
+      handleNoteResizeStart(e);
+    });
+  });
 }
 
 // Funzione per configurare l'editing del titolo delle note
@@ -3331,13 +3403,19 @@ function handleNoteMouseMove(e) {
   const noteX = mouseXInCanvas - dragOffsetX / canvasScale;
   const noteY = mouseYInCanvas - dragOffsetY / canvasScale;
   
-  console.log('Nuova posizione della nota:', noteX, noteY);
-  
   // Aggiorna la posizione della nota
   draggedNote.style.transform = `translate(${noteX}px, ${noteY}px)`;
   
-  // Importante: aggiorna tutte le connessioni ogni volta che una nota viene spostata
-  updateAllConnections();
+  // Aggiorna immediatamente tutte le connessioni legate a questa nota
+  if (connections && connections.length > 0) {
+    connections.forEach(connection => {
+      // Verifica se questa connessione è collegata alla nota trascinata
+      if (connection.startElementId === draggedNote.id || 
+          connection.endElementId === draggedNote.id) {
+        updateConnectionPosition(connection);
+      }
+    });
+  }
 }
 
 // Funzione per terminare il trascinamento di una nota
@@ -3453,13 +3531,6 @@ function enterDocumentMode(note) {
   }
   
   console.log('Entrando in modalità documento per la nota:', note.id);
-  
-  // Assicurati che la classe del sistema operativo sia applicata al body
-  if (!document.body.classList.contains('windows') &&
-      !document.body.classList.contains('macos') &&
-      !document.body.classList.contains('linux')) {
-    detectOperatingSystem();
-  }
   
   // Memorizza l'ID della nota attiva
   activeNoteId = note.id;
@@ -3787,23 +3858,11 @@ function exitDocumentMode() {
   // Ripristina l'interattività del canvas
   document.querySelectorAll('.workspace-note, .workspace-ai-node, svg.connector').forEach(el => {
     el.style.visibility = 'visible';
-    el.style.opacity = '1'; // Assicurati che non ci siano opacità residue
-    el.style.display = ''; // Ripristina il display a default
   });
-  
-  // Forza un aggiornamento del canvas per risolvere eventuali problemi di visualizzazione
-  setTimeout(() => {
-    updateCanvasTransform();
-    updateAllConnections();
-  }, 100);
   
   // Ripristina la nota attiva
   if (note) {
     setActiveNote(noteId);
-    
-    // Forza la visualizzazione della nota corretta
-    note.style.visibility = 'visible';
-    note.style.opacity = '1';
   }
 }
 
@@ -4107,4 +4166,1093 @@ function handleBlockDragEnd(e) {
       }
     }
   }
+}
+
+// Funzione per gestire l'inizio del ridimensionamento di una nota
+function handleNoteResizeStart(e) {
+  // Verifica che sia un evento valido e che venga dal tasto sinistro
+  if (!e || e.button !== 0) return;
+  
+  // Trova la nota da ridimensionare
+  const resizeHandle = e.target.closest('.note-resize-handle, .resize-handle');
+  if (!resizeHandle) {
+    console.warn('Nessuna maniglia di ridimensionamento trovata');
+    return;
+  }
+  
+  const note = resizeHandle.closest('.workspace-note');
+  if (!note) {
+    console.warn('Nessuna nota trovata per il ridimensionamento');
+    return;
+  }
+  
+  // Previeni il comportamento predefinito e la propagazione
+  e.preventDefault();
+  e.stopPropagation();
+  
+  console.log('DEBUG_RESIZE: Inizio ridimensionamento nota:', note.id);
+  
+  // Imposta transform-origin sull'angolo superiore sinistro
+  note.style.transformOrigin = '0 0';
+  
+  // Memorizza la nota in ridimensionamento e la maniglia utilizzata
+  resizingNote = note;
+  currentNoteResizeHandle = resizeHandle;
+  
+  // Determina la direzione del ridimensionamento in base alla classe della maniglia
+  if (resizeHandle.classList.contains('top-left')) {
+    resizeDirection = 'top-left';
+  } else if (resizeHandle.classList.contains('top-right')) {
+    resizeDirection = 'top-right';
+  } else if (resizeHandle.classList.contains('bottom-left')) {
+    resizeDirection = 'bottom-left';
+  } else if (resizeHandle.classList.contains('bottom-right')) {
+    resizeDirection = 'bottom-right';
+  } else if (resizeHandle.classList.contains('top')) {
+    resizeDirection = 'top';
+  } else if (resizeHandle.classList.contains('right')) {
+    resizeDirection = 'right';
+  } else if (resizeHandle.classList.contains('bottom')) {
+    resizeDirection = 'bottom';
+  } else if (resizeHandle.classList.contains('left')) {
+    resizeDirection = 'left';
+  } else {
+    // Se non ha classi specifiche, assumiamo che sia la maniglia di default (bottom-right)
+    resizeDirection = 'bottom-right';
+  }
+  
+  console.log('DEBUG_RESIZE: Direzione ridimensionamento:', resizeDirection);
+  
+  // Memorizza le posizioni e dimensioni iniziali
+  initialMouseX = e.clientX;
+  initialMouseY = e.clientY;
+  initialNoteRect = note.getBoundingClientRect();
+  
+  console.log('DEBUG_RESIZE: Posizione mouse iniziale:', initialMouseX, initialMouseY);
+  console.log('DEBUG_RESIZE: Dimensioni iniziali nota:', {
+    width: initialNoteRect.width,
+    height: initialNoteRect.height,
+    top: initialNoteRect.top,
+    left: initialNoteRect.left
+  });
+  
+  // Estrai la posizione attuale della nota (traslazione)
+  const style = window.getComputedStyle(note);
+  initialNoteTransform = style.transform || 'translate(0px, 0px)';
+  
+  const translateX = extractTranslateX(initialNoteTransform);
+  const translateY = extractTranslateY(initialNoteTransform);
+  
+  console.log('DEBUG_RESIZE: Transform iniziale:', initialNoteTransform);
+  console.log('DEBUG_RESIZE: Valori translate estratti:', translateX, translateY);
+  
+  // Aggiungi la classe di ridimensionamento per gli stili specifici
+  note.classList.add('resizing');
+  
+  // Aggiungi gli event listeners al documento per il movimento e il rilascio
+  document.addEventListener('mousemove', handleNoteResizeMove);
+  document.addEventListener('mouseup', handleNoteResizeEnd);
+  
+  // Crea un overlay di ridimensionamento per evitare problemi con altri elementi
+  const resizeOverlay = document.createElement('div');
+  resizeOverlay.className = 'resize-overlay';
+  resizeOverlay.id = 'resizeOverlay';
+  document.body.appendChild(resizeOverlay);
+}
+
+// Funzione per gestire il movimento durante il ridimensionamento di una nota
+function handleNoteResizeMove(e) {
+  // Verifica che ci sia una nota in ridimensionamento
+  if (!resizingNote) return;
+  
+  // Previeni il comportamento predefinito
+  e.preventDefault();
+  
+  // Calcola il delta del movimento del mouse
+  const deltaX = e.clientX - initialMouseX;
+  const deltaY = e.clientY - initialMouseY;
+  
+  console.log('DEBUG_RESIZE_MOVE: Delta mouse:', deltaX, deltaY);
+  console.log('DEBUG_RESIZE_MOVE: Posizione mouse corrente:', e.clientX, e.clientY);
+  
+  // Applica il fattore di scala per convertire i movimenti del mouse in coordinate del canvas
+  const invScale = 1 / canvasScale;
+  const dx = deltaX * invScale;
+  const dy = deltaY * invScale;
+  
+  console.log('DEBUG_RESIZE_MOVE: Scale factor:', canvasScale, 'Inverse:', invScale);
+  console.log('DEBUG_RESIZE_MOVE: Delta scalati (dx, dy):', dx, dy);
+  
+  // Imposta transform-origin sull'angolo superiore sinistro
+  resizingNote.style.transformOrigin = '0 0';
+  
+  // Ottieni le dimensioni attuali della nota
+  let w = initialNoteRect.width;
+  let h = initialNoteRect.height;
+  
+  // Estrai la posizione attuale
+  let tx = extractTranslateX(initialNoteTransform);
+  let ty = extractTranslateY(initialNoteTransform);
+  
+  console.log('DEBUG_RESIZE_MOVE: Dimensioni iniziali prima del calcolo (w, h):', w, h);
+  console.log('DEBUG_RESIZE_MOVE: Translate iniziali prima del calcolo (tx, ty):', tx, ty);
+  
+  // Valori originali prima delle modifiche (per debug)
+  const originalW = w;
+  const originalH = h;
+  const originalTx = tx;
+  const originalTy = ty;
+  
+  // Applica i cambiamenti in base alla direzione di ridimensionamento
+  switch (resizeDirection) {
+    case 'bottom-right':
+      w += dx;  h += dy;
+      console.log('DEBUG_RESIZE_MOVE: Ridimensionamento bottom-right');
+      break;
+    case 'bottom-left':
+      w -= dx;  h += dy;  tx += dx;
+      console.log('DEBUG_RESIZE_MOVE: Ridimensionamento bottom-left');
+      break;
+    case 'top-right':
+      w += dx;  h -= dy;  ty += dy;
+      console.log('DEBUG_RESIZE_MOVE: Ridimensionamento top-right');
+      break;
+    case 'top-left':
+      w -= dx;  h -= dy;  tx += dx;  ty += dy;
+      console.log('DEBUG_RESIZE_MOVE: Ridimensionamento top-left');
+      break;
+    case 'right':
+      w += dx; 
+      console.log('DEBUG_RESIZE_MOVE: Ridimensionamento right');
+      break;
+    case 'left':
+      w -= dx;  tx += dx;
+      console.log('DEBUG_RESIZE_MOVE: Ridimensionamento left');
+      break;
+    case 'bottom':
+      h += dy;
+      console.log('DEBUG_RESIZE_MOVE: Ridimensionamento bottom');
+      break;
+    case 'top':
+      h -= dy;  ty += dy;
+      console.log('DEBUG_RESIZE_MOVE: Ridimensionamento top');
+      break;
+  }
+  
+  console.log('DEBUG_RESIZE_MOVE: Dimensioni dopo switch (w, h):', w, h);
+  console.log('DEBUG_RESIZE_MOVE: Translate dopo switch (tx, ty):', tx, ty);
+  console.log('DEBUG_RESIZE_MOVE: Cambiamenti applicati:', {
+    widthDiff: w - originalW,
+    heightDiff: h - originalH,
+    txDiff: tx - originalTx,
+    tyDiff: ty - originalTy
+  });
+  
+  // Dimensioni minime per la nota
+  const minWidth = 200;
+  const minHeight = 150;
+  
+  // Valori prima del clamp (per debug)
+  const preClampW = w;
+  const preClampH = h;
+  const preClampTx = tx;
+  const preClampTy = ty;
+  
+  // Applica limiti alle dimensioni
+  if (w < minWidth) {
+    // Aggiusta la posizione se la larghezza è troppo piccola
+    if (resizeDirection.includes('left')) {
+      tx -= (minWidth - w);
+      console.log('DEBUG_RESIZE_MOVE: Correzione posizione X per minWidth:', minWidth - w);
+    }
+    w = minWidth;
+  }
+  
+  if (h < minHeight) {
+    // Aggiusta la posizione se l'altezza è troppo piccola
+    if (resizeDirection.includes('top')) {
+      ty -= (minHeight - h);
+      console.log('DEBUG_RESIZE_MOVE: Correzione posizione Y per minHeight:', minHeight - h);
+    }
+    h = minHeight;
+  }
+  
+  console.log('DEBUG_RESIZE_MOVE: Dimensioni dopo clamp min (w, h):', w, h);
+  console.log('DEBUG_RESIZE_MOVE: Translate dopo clamp min (tx, ty):', tx, ty);
+  console.log('DEBUG_RESIZE_MOVE: Clamp applicato:', {
+    widthClamp: w - preClampW,
+    heightClamp: h - preClampH,
+    txClamp: tx - preClampTx,
+    tyClamp: ty - preClampTy
+  });
+  
+  // Dimensioni del canvas per limitare la posizione
+  const canvasWidth = 10000;  // Dimensione totale del canvas
+  const canvasHeight = 10000; // Dimensione totale del canvas
+  
+  // Valori prima del boundary check (per debug)
+  const preBoundsTx = tx;
+  const preBoundsTy = ty;
+  
+  // Limita la posizione dentro i bordi del canvas
+  tx = Math.max(0, Math.min(tx, canvasWidth - w));
+  ty = Math.max(0, Math.min(ty, canvasHeight - h));
+  
+  console.log('DEBUG_RESIZE_MOVE: Limiti canvas:', canvasWidth, canvasHeight);
+  console.log('DEBUG_RESIZE_MOVE: Translate dopo boundary check (tx, ty):', tx, ty);
+  console.log('DEBUG_RESIZE_MOVE: Boundary check applicato:', {
+    txBoundary: tx - preBoundsTx,
+    tyBoundary: ty - preBoundsTy
+  });
+  
+  // Aggiorna le dimensioni della nota
+  resizingNote.style.width = `${w}px`;
+  resizingNote.style.height = `${h}px`;
+  
+  // Aggiorna la posizione
+  resizingNote.style.transform = `translate(${tx}px, ${ty}px)`;
+  
+  // Log delle dimensioni e posizione finali
+  console.log('DEBUG_RESIZE_MOVE: Valori finali impostati:', {
+    width: `${w}px`,
+    height: `${h}px`,
+    transform: `translate(${tx}px, ${ty}px)`
+  });
+  
+  try {
+    // Verifica se l'elemento è ancora nel DOM e visibile
+    const noteRect = resizingNote.getBoundingClientRect();
+    console.log('DEBUG_RESIZE_MOVE: BoundingClientRect finale:', {
+      width: noteRect.width,
+      height: noteRect.height,
+      left: noteRect.left,
+      top: noteRect.top,
+      right: noteRect.right,
+      bottom: noteRect.bottom,
+      inViewport: 
+        noteRect.left < window.innerWidth && 
+        noteRect.right > 0 && 
+        noteRect.top < window.innerHeight && 
+        noteRect.bottom > 0
+    });
+  } catch (error) {
+    console.error('DEBUG_RESIZE_MOVE: Errore nel verificare le dimensioni finali:', error);
+  }
+  
+  // Aggiorna le connessioni se ci sono
+  scheduleConnectionsUpdate();
+}
+
+// Funzione per terminare il ridimensionamento di una nota
+function handleNoteResizeEnd(e) {
+  // Verifica che ci sia una nota in ridimensionamento
+  if (!resizingNote) return;
+  
+  console.log('DEBUG_RESIZE_END: Fine ridimensionamento nota:', resizingNote.id);
+  
+  try {
+    // Verifica posizione e dimensioni finali
+    const finalRect = resizingNote.getBoundingClientRect();
+    const finalStyle = window.getComputedStyle(resizingNote);
+    console.log('DEBUG_RESIZE_END: Dimensioni finali:', {
+      width: finalStyle.width,
+      height: finalStyle.height,
+      transform: finalStyle.transform,
+      left: finalRect.left,
+      top: finalRect.top,
+      right: finalRect.right,
+      bottom: finalRect.bottom
+    });
+  } catch (error) {
+    console.error('DEBUG_RESIZE_END: Errore nel verificare lo stato finale:', error);
+  }
+  
+  // Rimuovi la classe di ridimensionamento
+  resizingNote.classList.remove('resizing');
+  
+  // Salva lo stato della nota
+  if (typeof saveNoteState === 'function') {
+    saveNoteState(resizingNote.id);
+  } else {
+    console.warn('La funzione saveNoteState non è definita');
+  }
+  
+  // Rimuovi l'overlay di ridimensionamento
+  const resizeOverlay = document.getElementById('resizeOverlay');
+  if (resizeOverlay) {
+    resizeOverlay.remove();
+  }
+  
+  // Rimuovi gli event listeners
+  document.removeEventListener('mousemove', handleNoteResizeMove);
+  document.removeEventListener('mouseup', handleNoteResizeEnd);
+  
+  // Aggiorna le connessioni
+  updateAllConnections();
+  
+  // Resetta le variabili di ridimensionamento
+  resizingNote = null;
+  currentNoteResizeHandle = null;
+  resizeDirection = null;
+  initialMouseX = 0;
+  initialMouseY = 0;
+  initialNoteRect = null;
+  initialNoteTransform = null;
+}
+
+// Funzione per aggiungere maniglie di ridimensionamento a una nota
+function addResizeHandlesToNote(note) {
+  // Verifica che la nota sia valida
+  if (!note) return;
+  
+  // Crea e aggiungi le maniglie per i bordi e gli angoli
+  const directions = [
+    'top-left', 'top', 'top-right',
+    'left', 'right',
+    'bottom-left', 'bottom', 'bottom-right'
+  ];
+  
+  directions.forEach(direction => {
+    const handle = document.createElement('div');
+    handle.className = `resize-handle ${direction}`;
+    note.appendChild(handle);
+  });
+}
+
+// Esponi la funzione handleNoteResizeStart globalmente
+window.handleNoteResizeStart = handleNoteResizeStart;
+
+// Esponi la funzione handleNoteResizeMove globalmente
+window.handleNoteResizeMove = handleNoteResizeMove;
+
+// Esponi la funzione handleNoteResizeEnd globalmente
+window.handleNoteResizeEnd = handleNoteResizeEnd;
+
+// Esponi la funzione addResizeHandlesToNote globalmente
+window.addResizeHandlesToNote = addResizeHandlesToNote;
+
+// Esponi la variabile connections globalmente
+window.connections = connections;
+
+// Esponi la funzione createPermanentConnection globalmente
+window.createPermanentConnection = createPermanentConnection;
+
+// Esponi la funzione updateConnectionPosition globalmente
+window.updateConnectionPosition = updateConnectionPosition;
+
+// Esponi la funzione updateAllConnections globalmente
+window.updateAllConnections = updateAllConnections;
+
+// Esponi la funzione deleteConnection globalmente
+window.deleteConnection = deleteConnection;
+
+// Esponi la funzione selectConnection globalmente
+window.selectConnection = selectConnection;
+
+// Esponi la funzione updateCanvasTransform globalmente
+window.updateCanvasTransform = updateCanvasTransform;
+
+// Funzione per selezionare una connessione
+function selectConnection(connectionId) {
+  // Se c'è già una connessione selezionata, deselezionala
+  if (selectedConnectionId) {
+    const previousSelectedPath = document.getElementById(selectedConnectionId);
+    if (previousSelectedPath) {
+      previousSelectedPath.classList.remove('selected');
+    }
+    
+    // Se stiamo selezionando la stessa connessione, la deseleziona
+    if (selectedConnectionId === connectionId) {
+      selectedConnectionId = null;
+      hideConnectionFloatingBar();
+      return;
+    }
+  }
+  
+  // Trova la connessione
+  const connection = connections.find(conn => conn.id === connectionId);
+  if (!connection) {
+    console.warn('Connessione non trovata:', connectionId);
+    return;
+  }
+  
+  // Seleziona la nuova connessione
+  selectedConnectionId = connectionId;
+  connection.path.classList.add('selected');
+  
+  // Mostra la floating bar
+  showConnectionFloatingBar(connectionId);
+}
+
+// Funzione per mostrare la floating bar della connessione
+function showConnectionFloatingBar(connectionId) {
+  // Trova la connessione
+  const connection = connections.find(conn => conn.id === connectionId);
+  if (!connection) {
+    console.warn('Connessione non trovata:', connectionId);
+    return;
+  }
+  
+  // Calcola il punto centrale della connessione
+  const pathElement = connection.path;
+  const pathLength = pathElement.getTotalLength();
+  const midPoint = pathElement.getPointAtLength(pathLength / 2);
+  
+  // Crea o aggiorna la floating bar
+  if (!connectionFloatingBar) {
+    connectionFloatingBar = createConnectionFloatingBar();
+    document.getElementById('connectionsContainer').appendChild(connectionFloatingBar);
+  }
+  
+  // Posiziona la floating bar
+  const workspace = document.querySelector('.workflow-workspace');
+  if (!workspace) return;
+  
+  const scale = canvasScale || 1;
+  
+  // Calcola le coordinate considerando sia la scala che l'offset del canvas
+  // La floating bar deve seguire la connessione durante panning e zoom
+  const barX = midPoint.x * scale + canvasOffsetX;
+  const barY = midPoint.y * scale + canvasOffsetY - 40 * scale; // Posiziona sopra la connessione
+  
+  // Usa transform per un posizionamento più stabile
+  connectionFloatingBar.style.left = '0';
+  connectionFloatingBar.style.top = '0';
+  connectionFloatingBar.style.transform = `translate(${barX}px, ${barY}px) translate(-50%, -50%)`;
+  
+  // Adatta la scala dei pulsanti per mantenerli della stessa dimensione rispetto al livello di zoom
+  connectionFloatingBar.style.fontSize = `${12 / scale}px`;
+  connectionFloatingBar.querySelectorAll('.connection-floating-bar-button').forEach(button => {
+    button.style.padding = `${4 / scale}px ${8 / scale}px`;
+  });
+  
+  connectionFloatingBar.classList.add('visible');
+  
+  // Assicura che l'etichetta sia correttamente posizionata
+  if (connection.labelElement) {
+    updateLabelPosition(connection);
+  }
+  
+  // Ripristina lo stile memorizzato della connessione, se presente
+  if (connection.style) {
+    pathElement.setAttribute('stroke', connection.style.stroke);
+    pathElement.setAttribute('stroke-width', connection.style.strokeWidth);
+    pathElement.style.strokeDasharray = connection.style.dashArray === 'none' ? '' : connection.style.dashArray;
+    pathElement.style.opacity = connection.style.opacity;
+    pathElement.setAttribute('data-style-index', connection.style.index);
+  }
+}
+
+// Funzione per nascondere la floating bar della connessione
+function hideConnectionFloatingBar() {
+  if (connectionFloatingBar) {
+    connectionFloatingBar.classList.remove('visible');
+  }
+}
+
+// Funzione per creare la floating bar delle connessioni
+function createConnectionFloatingBar() {
+  const bar = document.createElement('div');
+  bar.className = 'connection-floating-bar';
+  
+  // Pulsante per aggiungere un'etichetta
+  const addLabelButton = document.createElement('button');
+  addLabelButton.className = 'connection-floating-bar-button';
+  addLabelButton.innerHTML = '<i class="fas fa-plus"></i>';
+  addLabelButton.title = 'Aggiungi etichetta';
+  addLabelButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (selectedConnectionId) {
+      addConnectionLabel(selectedConnectionId, null, true);
+    }
+  });
+  
+  // Separatore 1
+  const separator1 = document.createElement('div');
+  separator1.className = 'connection-floating-bar-separator';
+  
+  // Pulsante per cambiare lo stile della linea
+  const styleButton = document.createElement('button');
+  styleButton.className = 'connection-floating-bar-button';
+  styleButton.innerHTML = '<i class="fas fa-paint-brush"></i>';
+  styleButton.title = 'Cambia stile';
+  styleButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (selectedConnectionId) {
+      toggleConnectionStyle(selectedConnectionId);
+    }
+  });
+  
+  // Separatore 2
+  const separator2 = document.createElement('div');
+  separator2.className = 'connection-floating-bar-separator';
+  
+  // Pulsante per eliminare la connessione
+  const deleteButton = document.createElement('button');
+  deleteButton.className = 'connection-floating-bar-button';
+  deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
+  deleteButton.title = 'Elimina connessione';
+  deleteButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (selectedConnectionId) {
+      deleteConnection(selectedConnectionId);
+      selectedConnectionId = null;
+    }
+  });
+  
+  // Aggiungi elementi alla floating bar
+  bar.appendChild(addLabelButton);
+  bar.appendChild(separator1);
+  bar.appendChild(styleButton);
+  bar.appendChild(separator2);
+  bar.appendChild(deleteButton);
+  
+  return bar;
+}
+
+// Funzione per modificare lo stile della connessione ciclicamente
+function toggleConnectionStyle(connectionId) {
+  const connection = connections.find(conn => conn.id === connectionId);
+  if (!connection || !connection.path) return;
+  
+  // Stili disponibili per le connessioni
+  const styles = [
+    { stroke: '#4a4dff', strokeWidth: '2', dashArray: 'none', opacity: '1' },   // Default
+    { stroke: '#ff4a4d', strokeWidth: '2', dashArray: 'none', opacity: '1' },   // Rosso
+    { stroke: '#4dff4a', strokeWidth: '2', dashArray: 'none', opacity: '1' },   // Verde
+    { stroke: '#4a4dff', strokeWidth: '2', dashArray: '5,3', opacity: '1' },    // Blu tratteggiato
+    { stroke: '#ff4a4d', strokeWidth: '2', dashArray: '5,3', opacity: '1' },    // Rosso tratteggiato
+    { stroke: '#4dff4a', strokeWidth: '2', dashArray: '5,3', opacity: '1' }     // Verde tratteggiato
+  ];
+  
+  // Ottieni lo stile corrente o imposta il default
+  let currentStyleIndex = parseInt(connection.path.getAttribute('data-style-index') || '0');
+  
+  // Passa al prossimo stile
+  currentStyleIndex = (currentStyleIndex + 1) % styles.length;
+  
+  // Applica il nuovo stile
+  const newStyle = styles[currentStyleIndex];
+  connection.path.setAttribute('stroke', newStyle.stroke);
+  connection.path.setAttribute('stroke-width', newStyle.strokeWidth);
+  connection.path.style.strokeDasharray = newStyle.dashArray === 'none' ? '' : newStyle.dashArray;
+  connection.path.style.opacity = newStyle.opacity;
+  
+  // Memorizza l'indice dello stile
+  connection.path.setAttribute('data-style-index', currentStyleIndex);
+  
+  // Salva lo stile nella connessione per ripristinarlo in futuro
+  connection.style = {
+    index: currentStyleIndex,
+    stroke: newStyle.stroke,
+    strokeWidth: newStyle.strokeWidth,
+    dashArray: newStyle.dashArray,
+    opacity: newStyle.opacity
+  };
+  
+  // Salva lo stato del workflow
+  saveWorkflowState(currentWorkflowId);
+}
+
+// Funzione per aggiungere un'etichetta alla connessione
+function addConnectionLabel(connectionId, connectionPath, makeVisible = false) {
+  // Trova la connessione
+  const connection = connections.find(conn => conn.id === connectionId);
+  if (!connection) {
+    console.error("Connessione non trovata per aggiungere l'etichetta:", connectionId);
+    return;
+  }
+  
+  // Se non esiste un'etichetta per questa connessione, creane una
+  if (!connection.labelElement) {
+    // Crea un elemento per l'etichetta
+    const labelElement = document.createElement('div');
+    labelElement.className = 'connection-label';
+    labelElement.style.position = 'absolute';
+    labelElement.style.padding = '4px 8px';
+    labelElement.style.backgroundColor = 'white';
+    labelElement.style.border = '1px solid #ddd';
+    labelElement.style.borderRadius = '4px';
+    labelElement.style.fontSize = '12px';
+    labelElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.15)';
+    labelElement.style.zIndex = '100';
+    labelElement.style.pointerEvents = 'auto';
+    labelElement.style.cursor = 'pointer';
+    labelElement.style.textAlign = 'center';
+    
+    // Aggiungi l'etichetta al DOM
+    const connectionsContainer = document.getElementById('connectionsContainer');
+    if (connectionsContainer) {
+      connectionsContainer.appendChild(labelElement);
+    } else {
+      console.error('Container delle connessioni non trovato');
+      return;
+    }
+    
+    // Salva un riferimento all'elemento dell'etichetta nella connessione
+    connection.labelElement = labelElement;
+  }
+  
+  // Se è richiesto renderla visibile o non c'è alcuna etichetta, mostra l'input
+  if (makeVisible || !connection.label) {
+    showEditableLabel(connection);
+  } else {
+    // Altrimenti mostra l'etichetta come testo
+    showLabelText(connection);
+  }
+  
+  // Aggiorna la posizione dell'etichetta
+  updateLabelPosition(connection);
+}
+
+// Funzione per mostrare l'input modificabile dell'etichetta
+function showEditableLabel(connection) {
+  if (!connection || !connection.labelElement) return;
+  
+  // Pulisci il contenuto attuale
+  connection.labelElement.innerHTML = '';
+  
+  // Crea l'input per l'etichetta
+  const input = document.createElement('input');
+  input.className = 'connection-label-input';
+  input.placeholder = 'Etichetta...';
+  input.style.border = 'none';
+  input.style.outline = 'none';
+  input.style.fontSize = '12px';
+  input.style.width = '150px';
+  input.style.backgroundColor = 'transparent';
+  input.style.textAlign = 'center';
+  input.value = connection.label || '';
+  
+  // Aggiungi l'input al container dell'etichetta
+  connection.labelElement.appendChild(input);
+  connection.labelElement.style.display = 'block';
+  
+  // Focus sull'input
+  setTimeout(() => input.focus(), 10);
+  
+  // Gestione dell'invio e dell'annullamento
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveLabel(connection, input.value);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      if (connection.label) {
+        showLabelText(connection);
+      } else {
+        connection.labelElement.style.display = 'none';
+      }
+    }
+  });
+  
+  // Gestione della perdita di focus
+  input.addEventListener('blur', () => {
+    saveLabel(connection, input.value);
+  });
+}
+
+// Funzione per mostrare l'etichetta come testo
+function showLabelText(connection) {
+  if (!connection || !connection.labelElement) return;
+  
+  // Pulisci il contenuto attuale
+  connection.labelElement.innerHTML = '';
+  
+  // Se non c'è un'etichetta, nascondi l'elemento
+  if (!connection.label) {
+    connection.labelElement.style.display = 'none';
+    return;
+  }
+  
+  // Crea il testo dell'etichetta
+  const labelText = document.createElement('div');
+  labelText.textContent = connection.label;
+  connection.labelElement.appendChild(labelText);
+  connection.labelElement.style.display = 'block'; // Assicurati che sia visibile
+  
+  // Aggiungi un EventListener per modificare l'etichetta al click
+  labelText.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showEditableLabel(connection);
+  });
+}
+
+// Funzione per salvare l'etichetta
+function saveLabel(connection, value) {
+  if (!connection) return;
+  
+  // Salva il valore dell'etichetta
+  connection.label = value.trim();
+  
+  // Se l'etichetta è vuota, nascondi l'elemento
+  if (!connection.label && connection.labelElement) {
+    connection.labelElement.style.display = 'none';
+  } else {
+    // Altrimenti mostra il testo
+    showLabelText(connection);
+    updateLabelPosition(connection);
+  }
+  
+  // Salva lo stato del workflow
+  if (typeof saveWorkflowState === 'function' && currentWorkflowId) {
+    saveWorkflowState(currentWorkflowId);
+  }
+}
+
+// Funzione per aggiornare la posizione dell'etichetta
+function updateLabelPosition(connection) {
+  if (!connection || !connection.labelElement || !connection.path) return;
+  
+  try {
+    // Calcola il punto centrale della connessione
+    const pathElement = connection.path;
+    const pathLength = pathElement.getTotalLength();
+    const midPoint = pathElement.getPointAtLength(pathLength / 2);
+    
+    // Ottieni il workspace e il workspaceContent
+    const workspace = document.querySelector('.workflow-workspace');
+    const workspaceContent = document.getElementById('workflowContent');
+    if (!workspace || !workspaceContent) return;
+    
+    // Ottieni la posizione dell'etichetta in coordinate assolute del canvas
+    // L'etichetta è un elemento DOM posizionato a livello del workspace, 
+    // quindi deve tener conto di scale e offset del canvas
+    const scale = canvasScale || 1;
+    
+    // Calcola la posizione dell'etichetta rispetto al contenuto del workspace
+    // usando le coordinate corrette considerando lo scale ma non lo scroll
+    const labelX = midPoint.x * scale + canvasOffsetX;
+    const labelY = midPoint.y * scale - 15 * scale + canvasOffsetY; // Posiziona l'etichetta sopra la linea
+    
+    // Posiziona l'etichetta con transform per migliorare la stabilità
+    connection.labelElement.style.left = '0';
+    connection.labelElement.style.top = '0';
+    connection.labelElement.style.transform = `translate(${labelX}px, ${labelY}px) translate(-50%, -50%)`;
+    
+    // Aggiorna la scala dell'etichetta per mantenerla della stessa dimensione
+    // inversamente proporzionale allo zoom del canvas
+    connection.labelElement.style.fontSize = `${12 / scale}px`;
+    connection.labelElement.style.padding = `${4 / scale}px ${8 / scale}px`;
+    
+    // Aggiungi un attributo personalizzato per tenere traccia della posizione
+    connection.labelElement.setAttribute('data-x', midPoint.x);
+    connection.labelElement.setAttribute('data-y', midPoint.y);
+    
+    // Assicurati che l'etichetta sia visibile
+    connection.labelElement.style.display = connection.label ? 'block' : 'none';
+  } catch (error) {
+    console.error('Errore nel posizionare l\'etichetta:', error);
+  }
+}
+
+// Aggiungi event listener per deselezionare la connessione quando si clicca fuori
+document.addEventListener('click', (e) => {
+  // Non fare nulla se abbiamo cliccato su un elemento della connessione
+  if (e.target.closest('.connection-path, .connection-floating-bar, .connection-label')) {
+    return;
+  }
+  
+  // Altrimenti deseleziona la connessione corrente
+  if (selectedConnectionId) {
+    const connectionPath = document.getElementById(selectedConnectionId);
+    if (connectionPath) {
+      connectionPath.classList.remove('selected');
+    }
+    
+    selectedConnectionId = null;
+    hideConnectionFloatingBar();
+  }
+});
+
+// Modifica la funzione deleteConnection per gestire la cancellazione della connessione selezionata
+function deleteConnection(connectionId) {
+  // Trova la connessione da eliminare
+  const connectionIndex = connections.findIndex(conn => conn.id === connectionId);
+  
+  if (connectionIndex >= 0) {
+    const connection = connections[connectionIndex];
+    
+    // Se questa è la connessione attualmente selezionata, nascondi la floating bar
+    if (selectedConnectionId === connectionId) {
+      hideConnectionFloatingBar();
+      selectedConnectionId = null;
+    }
+    
+    // Rimuovi il path SVG dal DOM
+    if (connection.path) {
+      connection.path.remove();
+    }
+    
+    // Rimuovi l'elemento dell'etichetta se esiste
+    if (connection.labelElement) {
+      connection.labelElement.remove();
+    }
+    
+    // Rimuovi la connessione dall'array
+    connections.splice(connectionIndex, 1);
+    
+    console.log(`Connessione ${connectionId} eliminata. Connessioni rimanenti: ${connections.length}`);
+    
+    // Salva lo stato del workflow
+    saveWorkflowState(currentWorkflowId);
+    
+    return true;
+  }
+  
+  return false;
+}
+
+// Funzione per ottenere le coordinate di un porto specifico
+function getPortCoordinates(element, portPosition) {
+  if (!element) {
+    console.warn('DEBUG_PORT_COORDS: Elemento non fornito a getPortCoordinates');
+    return { x: 0, y: 0 };
+  }
+  const port = element.querySelector(`.connection-port[data-position="${portPosition}"]`);
+  if (!port) {
+    console.warn('DEBUG_PORT_COORDS: Porta non trovata per l\'elemento ' + element.id + ' con posizione ' + portPosition);
+    return { x: 0, y: 0 };
+  }
+
+  const noteRect = element.getBoundingClientRect();
+  const portRect = port.getBoundingClientRect();
+  const workspaceContent = document.getElementById('workflow-workspace-content');
+  const workspaceRect = workspaceContent.getBoundingClientRect(); // Questo è il rettangolo del contenitore scalato
+
+  // Calcola le coordinate del centro della porta rispetto all'elemento nota
+  let x = (portRect.left - noteRect.left) + (portRect.width / 2);
+  let y = (portRect.top - noteRect.top) + (portRect.height / 2);
+
+  // Ora aggiungi la posizione della nota (transform)
+  const transform = element.style.transform;
+  const translateX = extractTranslateX(transform);
+  const translateY = extractTranslateY(transform);
+
+  x += translateX;
+  y += translateY;
+
+  console.log('DEBUG_PORT_COORDS: Elemento: ' + element.id + ', Porta: ' + portPosition);
+  console.log('DEBUG_PORT_COORDS: Note Rect (raw): left=' + noteRect.left.toFixed(2) + ', top=' + noteRect.top.toFixed(2) + ', w=' + noteRect.width.toFixed(2) + ', h=' + noteRect.height.toFixed(2));
+  console.log('DEBUG_PORT_COORDS: Port Rect (raw): left=' + portRect.left.toFixed(2) + ', top=' + portRect.top.toFixed(2) + ', w=' + portRect.width.toFixed(2) + ', h=' + portRect.height.toFixed(2));
+  console.log('DEBUG_PORT_COORDS: Workspace Rect (scaled container): left=' + workspaceRect.left.toFixed(2) + ', top=' + workspaceRect.top.toFixed(2));
+  console.log('DEBUG_PORT_COORDS: canvasScale: ' + canvasScale + ', canvasOffsetX: ' + canvasOffsetX + ', canvasOffsetY: ' + canvasOffsetY);
+  console.log('DEBUG_PORT_COORDS: Note transform: ' + transform + ', translateX: ' + translateX.toFixed(2) + ', translateY: ' + translateY.toFixed(2));
+  console.log('DEBUG_PORT_COORDS: Coordinate calcolate della porta (rispetto al workspace-content): x=' + x.toFixed(2) + ', y=' + y.toFixed(2));
+
+  return { x, y };
+}
+
+// Funzione helper per salvare lo stato del workflow
+function saveWorkflowState(workflowId) {
+  // Verifica che la funzione esista nel contesto globale
+  if (window.workflowFunctions && typeof window.workflowFunctions.saveWorkflowState === 'function') {
+    window.workflowFunctions.saveWorkflowState(workflowId);
+  } else {
+    console.warn('Funzione saveWorkflowState non disponibile nel contesto globale');
+  }
+}
+
+// Funzione per controllare le collisioni con altri elementi
+function checkConnectionCollisions(startPoint, endPoint, controlPoint1, controlPoint2) {
+  // Ottieni tutti gli elementi nel workspace
+  const workspaceElements = document.querySelectorAll('.workspace-note, .workspace-ai-node');
+  
+  // Array per memorizzare gli elementi che intersecano la connessione
+  const intersectingElements = [];
+  
+  // Ottieni un array di punti lungo la curva di Bezier
+  const bezierPoints = getBezierPoints(startPoint, endPoint, controlPoint1, controlPoint2, 20);
+  
+  // Controlla ogni elemento per possibili intersezioni
+  workspaceElements.forEach(element => {
+    // Ottieni il bounding box dell'elemento
+    const rect = element.getBoundingClientRect();
+    
+    // Converti il bounding box nelle coordinate del canvas
+    const workspace = document.getElementById('workflowWorkspace');
+    if (!workspace) return;
+    
+    const workspaceRect = workspace.getBoundingClientRect();
+    
+    const elementBox = {
+      left: (rect.left - workspaceRect.left - canvasOffsetX) / canvasScale,
+      top: (rect.top - workspaceRect.top - canvasOffsetY) / canvasScale,
+      right: (rect.right - workspaceRect.left - canvasOffsetX) / canvasScale,
+      bottom: (rect.bottom - workspaceRect.top - canvasOffsetY) / canvasScale,
+      width: rect.width / canvasScale,
+      height: rect.height / canvasScale
+    };
+    
+    // Espandi leggermente il bounding box per il margine minimo richiesto (10px)
+    const expandedBox = {
+      left: elementBox.left - 10,
+      top: elementBox.top - 10,
+      right: elementBox.right + 10,
+      bottom: elementBox.bottom + 10,
+      width: elementBox.width + 20,
+      height: elementBox.height + 20
+    };
+    
+    // Controlla se qualsiasi punto della curva interseca il bounding box espanso
+    for (let i = 0; i < bezierPoints.length - 1; i++) {
+      const p1 = bezierPoints[i];
+      const p2 = bezierPoints[i + 1];
+      
+      if (lineIntersectsRect(p1, p2, expandedBox)) {
+        intersectingElements.push({
+          element: element,
+          box: expandedBox
+        });
+        break; // Abbiamo trovato un'intersezione, passiamo al prossimo elemento
+      }
+    }
+  });
+  
+  return intersectingElements;
+}
+
+// Funzione di utilità per ottenere punti lungo una curva di Bezier
+function getBezierPoints(start, end, cp1, cp2, numPoints = 20) {
+  const points = [];
+  
+  for (let i = 0; i <= numPoints; i++) {
+    const t = i / numPoints;
+    const point = getBezierPoint(start, end, cp1, cp2, t);
+    points.push(point);
+  }
+  
+  return points;
+}
+
+// Funzione per calcolare un punto su una curva di Bezier cubica
+function getBezierPoint(start, end, cp1, cp2, t) {
+  const x = Math.pow(1 - t, 3) * start.x +
+            3 * Math.pow(1 - t, 2) * t * cp1.x +
+            3 * (1 - t) * Math.pow(t, 2) * cp2.x +
+            Math.pow(t, 3) * end.x;
+            
+  const y = Math.pow(1 - t, 3) * start.y +
+            3 * Math.pow(1 - t, 2) * t * cp1.y +
+            3 * (1 - t) * Math.pow(t, 2) * cp2.y +
+            Math.pow(t, 3) * end.y;
+            
+  return { x, y };
+}
+
+// Funzione per verificare se un segmento di linea interseca un rettangolo
+function lineIntersectsRect(p1, p2, rect) {
+  // Controlla se uno dei punti è all'interno del rettangolo
+  if (pointInRect(p1, rect) || pointInRect(p2, rect)) {
+    return true;
+  }
+  
+  // Controlla se la linea interseca uno dei lati del rettangolo
+  const rectLines = [
+    // Lato superiore
+    { p1: { x: rect.left, y: rect.top }, p2: { x: rect.right, y: rect.top } },
+    // Lato destro
+    { p1: { x: rect.right, y: rect.top }, p2: { x: rect.right, y: rect.bottom } },
+    // Lato inferiore
+    { p1: { x: rect.right, y: rect.bottom }, p2: { x: rect.left, y: rect.bottom } },
+    // Lato sinistro
+    { p1: { x: rect.left, y: rect.bottom }, p2: { x: rect.left, y: rect.top } }
+  ];
+  
+  for (const line of rectLines) {
+    if (linesIntersect(p1, p2, line.p1, line.p2)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+// Funzione per verificare se un punto è all'interno di un rettangolo
+function pointInRect(point, rect) {
+  return point.x >= rect.left && point.x <= rect.right && 
+         point.y >= rect.top && point.y <= rect.bottom;
+}
+
+// Funzione per verificare se due segmenti di linea si intersecano
+function linesIntersect(p1, p2, p3, p4) {
+  // Calcola i determinanti
+  const d1 = direction(p3, p4, p1);
+  const d2 = direction(p3, p4, p2);
+  const d3 = direction(p1, p2, p3);
+  const d4 = direction(p1, p2, p4);
+  
+  // Verifica se i segmenti si intersecano
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && 
+      ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+    return true;
+  }
+  
+  // Gestione dei casi speciali: se i punti sono collineari
+  if (d1 === 0 && pointOnSegment(p3, p4, p1)) return true;
+  if (d2 === 0 && pointOnSegment(p3, p4, p2)) return true;
+  if (d3 === 0 && pointOnSegment(p1, p2, p3)) return true;
+  if (d4 === 0 && pointOnSegment(p1, p2, p4)) return true;
+  
+  return false;
+}
+
+// Funzione di utilità per il calcolo della direzione di tre punti
+function direction(p1, p2, p3) {
+  return ((p3.x - p1.x) * (p2.y - p1.y)) - ((p2.x - p1.x) * (p3.y - p1.y));
+}
+
+// Funzione per verificare se un punto si trova su un segmento di linea
+function pointOnSegment(p1, p2, p) {
+  return (p.x <= Math.max(p1.x, p2.x) && p.x >= Math.min(p1.x, p2.x) && 
+          p.y <= Math.max(p1.y, p2.y) && p.y >= Math.min(p1.y, p2.y));
+}
+
+// Funzione per verificare se un punto è sul segmento
+function pointOnSegment(p1, p2, p) {
+  return (p.x <= Math.max(p1.x, p2.x) && p.x >= Math.min(p1.x, p2.x) && 
+          p.y <= Math.max(p1.y, p2.y) && p.y >= Math.min(p1.y, p2.y));
+}
+
+// Funzione per aggiornare tutte le etichette delle connessioni
+function updateAllConnectionLabels() {
+  if (!connections || connections.length === 0) {
+    return;
+  }
+  
+  connections.forEach(connection => {
+    if (connection.labelElement && connection.label) {
+      updateLabelPosition(connection);
+    }
+  });
+}
+
+// Funzione per aggiornare l'indicatore di posizione nel workspace
+function updatePositionIndicator() {
+  const positionIndicator = document.getElementById('positionIndicator');
+  const workspace = document.getElementById('workflowWorkspace');
+  
+  if (!positionIndicator || !workspace) {
+    return;
+  }
+  
+  // Calcola il centro attuale della viewport nelle coordinate del canvas
+  const viewportWidth = workspace.clientWidth;
+  const viewportHeight = workspace.clientHeight;
+  
+  // Il centro della viewport nelle coordinate del canvas
+  const centerX = Math.round((-canvasOffsetX + viewportWidth / 2) / canvasScale);
+  const centerY = Math.round((-canvasOffsetY + viewportHeight / 2) / canvasScale);
+  
+  // Aggiorna il testo dell'indicatore di posizione
+  positionIndicator.textContent = `Posizione: (${centerX}, ${centerY}) | Zoom: ${Math.round(canvasScale * 100)}%`;
+  
+  // Assicura che l'indicatore sia visibile
+  positionIndicator.classList.add('visible');
+  
+  // Imposta un timeout per nascondere l'indicatore dopo un certo periodo
+  clearTimeout(window.positionIndicatorTimeout);
+  window.positionIndicatorTimeout = setTimeout(() => {
+    positionIndicator.classList.remove('visible');
+  }, 1500);
 }

@@ -2787,17 +2787,6 @@ function showWorkflowEditor() {
     chatMessages.classList.add('workflow-fullscreen');
     if (chatInputContainer) chatInputContainer.style.display = 'none';
     
-    // Mostra la sidebar e ripristina la larghezza del contenuto
-    const sidebar = document.querySelector('.sidebar');
-    if (sidebar) {
-      sidebar.classList.remove('community-hidden');
-    }
-    
-    const chatContainer = document.querySelector('.chat-container');
-    if (chatContainer) {
-      chatContainer.classList.remove('community-fullwidth');
-    }
-    
     if (window.workflowFunctions?.initialize) { try { window.workflowFunctions.initialize(); } catch (error) { console.error('Workflow init error:', error); } }
     else { console.error('Workflow functions not available.'); }
     document.title = 'Workflow - Synapse'; const _updateWindowTitle = () => { const wt=document.querySelector('.window-title'); if(wt) wt.textContent = document.title || 'Synapse'; }; _updateWindowTitle();

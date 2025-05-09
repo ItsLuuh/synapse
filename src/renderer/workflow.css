@@ -127,6 +127,14 @@
   transform-origin: 0 0;
   top: 0;
   left: 0;
+  /* Aggiunta transizione per lo zoom fluido */
+  transition: transform 0.05s cubic-bezier(0.33, 1, 0.68, 1);
+  will-change: transform;
+}
+
+/* Disattiva la transizione durante i trascinamenti per prestazioni migliori */
+.workflow-workspace.panning .workflow-workspace-content {
+  transition: none;
 }
 
 /* Indicatore di posizione nel canvas ampio */
@@ -142,6 +150,15 @@
   z-index: 50;
   pointer-events: none;
   user-select: none;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Quando l'indicatore è visibile */
+.workspace-position-indicator.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* Stile per il cursore durante il panning */
@@ -2016,10 +2033,10 @@ body.dark-theme .block-drag-placeholder {
 /* Document mode overlay */
 .document-mode-overlay {
   position: fixed;
-  top: 30px; /* Posiziona subito sotto la titlebar personalizzata */
+  top: 0;
   left: 0;
   width: 100%;
-  height: calc(100% - 30px); /* Altezza totale meno la titlebar */
+  height: 100%;
   background-color: #fff;
   z-index: 1000;
   display: flex;
@@ -2028,7 +2045,7 @@ body.dark-theme .block-drag-placeholder {
   opacity: 1;
   transition: opacity 0.3s ease;
   box-shadow: 0 0 20px rgba(0,0,0,0.3);
-  padding-top: 0; /* Rimuovi il padding-top perché usiamo top: 30px */
+  padding-top: 30px;
 }
 
 .document-top-toolbar {
@@ -2313,13 +2330,13 @@ body.dark-theme .block-drag-placeholder {
   position: absolute;
   width: 18px;
   height: 18px;
-    border-radius: 50%;
+  border-radius: 50%;
   background-color: rgba(255, 255, 255, 0.1);
   transition: all 0.25s ease;
   z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .connection-port .connection-dot {
@@ -2374,7 +2391,7 @@ body.dark-theme .block-drag-placeholder {
 }
 
 .workspace-note:hover .connection-port .connection-dot {
-  opacity: 0.5;
+  opacity: 0.6;
   transform: scale(0.8);
 }
 
@@ -2402,13 +2419,20 @@ body.dark-theme .block-drag-placeholder {
 /* Connection paths */
 .connections-container {
   pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  z-index: 5; /* Sotto gli elementi ma sopra il background */
 }
 
 .connection-path {
   stroke: #4a4dff;
   stroke-width: 2;
   fill: none;
-  transition: stroke 0.2s ease;
+  transition: all 0.25s ease;
   pointer-events: stroke;
   filter: drop-shadow(0 0 1px rgba(74, 77, 255, 0.5));
 }
@@ -2417,6 +2441,101 @@ body.dark-theme .block-drag-placeholder {
   stroke: #3a3dff;
   stroke-width: 3;
   filter: drop-shadow(0 0 3px rgba(74, 77, 255, 0.5));
+}
+
+/* Connessione selezionata */
+.connection-path.selected {
+  stroke: #3a3dff;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 4px rgba(74, 77, 255, 0.7));
+}
+
+/* Floating bar per le connessioni */
+.connection-floating-bar {
+  position: absolute;
+  padding: 4px;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 101;
+  will-change: transform;
+  transform-origin: center center;
+  transition: opacity 0.2s ease-out, transform 0.05s ease-out;
+  /* Rimuovo le transizioni per left e top per evitare problemi durante lo zoom */
+}
+
+.connection-floating-bar.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.connection-floating-bar-button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.connection-floating-bar-button:hover {
+  background-color: #f1f3f4;
+  color: #333;
+}
+
+.connection-floating-bar-button:active {
+  background-color: #e8eaed;
+  transform: scale(0.95);
+}
+
+.connection-floating-bar-separator {
+  width: 1px;
+  height: 20px;
+  background-color: #ddd;
+  margin: 0 6px;
+}
+
+/* Etichetta della connessione */
+.connection-label {
+  position: absolute;
+  padding: 4px 8px;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  z-index: 100;
+  pointer-events: auto;
+  cursor: pointer;
+  will-change: transform;
+  text-align: center;
+  transform-origin: center center;
+  transition: transform 0.05s ease-out;
+  /* Rimuovo le transizioni per left e top per evitare problemi durante lo zoom */
+}
+
+.connection-label:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+
+.connection-label-input {
+  border: none;
+  outline: none;
+  font-size: 12px;
+  width: 150px;
+  background-color: transparent;
+  text-align: center;
 }
 
 /* Animazione pulse per i collegamenti evidenziati */
@@ -2685,22 +2804,13 @@ body.document-mode.dark-theme .block-content {
 }
 
 body.windows .document-mode-overlay {
-  top: 30px !important; /* Altezza esatta della titlebar in Windows */
-  position: fixed !important; 
-  z-index: 10000 !important;
-  height: calc(100% - 30px) !important;
-  max-height: calc(100% - 30px) !important;
-  padding-top: 0 !important; /* Rimuovi il padding-top */
+  padding-top: 30px;
 }
 
 body.macos .document-mode-overlay {
-  top: 30px !important; /* Altezza esatta della titlebar in macOS */
-  height: calc(100% - 30px) !important;
-  padding-top: 0 !important; /* Rimuovi il padding-top */
+  padding-top: 28px;
 }
 
 body.linux .document-mode-overlay {
-  top: 30px !important; /* Altezza esatta della titlebar in Linux */
-  height: calc(100% - 30px) !important;
-  padding-top: 0 !important; /* Rimuovi il padding-top */
+  padding-top: 32px;
 }
