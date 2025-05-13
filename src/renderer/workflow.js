@@ -435,23 +435,6 @@ function initializeWorkflow() {
         updateCanvasTransform(); // Questa chiama già scheduleConnectionsUpdate()
       });
     }
-
-    /*
-    // Create right sidebar with AI chat
-    const rightSidebar = document.createElement('div');
-    rightSidebar.className = 'workflow-right-sidebar';
-    mainLayout.appendChild(rightSidebar);
-
-    // Add toggle button for right sidebar
-    const toggleBtn = document.createElement('button');
-    toggleBtn.className = 'toggle-right-sidebar-btn';
-    toggleBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
-    toggleBtn.addEventListener('click', toggleWorkflowSidebar);
-    rightSidebar.appendChild(toggleBtn);
-
-    // Add AI chat component
-    createAIChat(rightSidebar);
-    */
     
     // Create minimap in the bottom right corner
     createMinimap(centerContainer);
