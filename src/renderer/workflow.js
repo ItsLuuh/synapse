@@ -44,6 +44,13 @@ let currentConnector = null;
 let connectorSourceNode = null;
 let connectorSourcePort = null;
 
+// Assicurati che window.connections esista
+if (typeof window.connections === 'undefined') {
+  window.connections = [];
+}
+// Variabile locale per retrocompatibilità
+let connections = window.connections;
+
 // Variabili globali per la gestione del drag e drop dei blocchi
 let draggingBlock = null;
 let blockDragStartY = 0;
@@ -74,8 +81,72 @@ function scheduleConnectionsUpdate() {
   
   // Aggiorna le connessioni con requestAnimationFrame per ottimizzare le prestazioni
   requestAnimationFrame(() => {
-    // Aggiorna tutte le connessioni
-    connections.forEach(connection => {
+    // Raccogli tutte le connessioni da aggiornare
+    const allConnectionsToUpdate = new Map(); // Usa una Map per evitare duplicati
+    
+    // Aggiungi prima le connessioni dalla variabile globale
+    if (window.connections && Array.isArray(window.connections)) {
+      console.log(`Pianificato aggiornamento di ${window.connections.length} connessioni globali`);
+      window.connections.forEach(connection => {
+        if (connection && connection.id) {
+          allConnectionsToUpdate.set(connection.id, connection);
+        }
+      });
+    }
+    
+    // Trova tutte le note nel workspace
+    const workspaceArea = document.getElementById('workflowWorkspace');
+    if (workspaceArea) {
+      const notes = workspaceArea.querySelectorAll('.workspace-note');
+      
+      // Per ogni nota, controlla se ha connessioni salvate
+      notes.forEach(note => {
+        try {
+          const savedStateJSON = localStorage.getItem(`note_${note.id}`);
+          if (savedStateJSON) {
+            const savedState = JSON.parse(savedStateJSON);
+            if (savedState && savedState.connections && Array.isArray(savedState.connections)) {
+              savedState.connections.forEach(connectionData => {
+                // Se la connessione non è già nella mappa e non esiste in connections
+                if (!allConnectionsToUpdate.has(connectionData.id)) {
+                  // Cerca la connessione nell'array global
+                  const existingConnection = window.connections?.find(c => c.id === connectionData.id);
+                  
+                  if (existingConnection) {
+                    // Se esiste, aggiungi alla mappa
+                    allConnectionsToUpdate.set(connectionData.id, existingConnection);
+                  } else {
+                    // Altrimenti, cerca di ricrearla
+                    const startElement = document.getElementById(connectionData.startElementId);
+                    const endElement = document.getElementById(connectionData.endElementId);
+                    
+                    if (startElement && endElement) {
+                      const startPort = startElement.querySelector(`.connection-port[data-position="${connectionData.startPortPosition}"]`);
+                      const endPort = endElement.querySelector(`.connection-port[data-position="${connectionData.endPortPosition}"]`);
+                      
+                      if (startPort && endPort && typeof window.createPermanentConnection === 'function') {
+                        const newConnection = window.createPermanentConnection(startElement, startPort, endElement, endPort);
+                        if (newConnection) {
+                          allConnectionsToUpdate.set(newConnection.id, newConnection);
+                        }
+                      }
+                    }
+                  }
+                }
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Errore nel recuperare le connessioni salvate per la nota ${note.id}:`, error);
+        }
+      });
+    }
+    
+    // Aggiorna tutte le connessioni raccolte
+    const connectionsArray = Array.from(allConnectionsToUpdate.values());
+    console.log(`Aggiornamento di ${connectionsArray.length} connessioni totali`);
+    
+    connectionsArray.forEach(connection => {
       try {
         updateConnectionPosition(connection);
       } catch (error) {
@@ -1242,6 +1313,30 @@ function saveNoteState(noteId) {
     console.warn(`Nota ${noteId} non ha contenuto da salvare`);
   }
   
+  // Trova tutte le connessioni associate a questa nota
+  const noteConnections = [];
+  if (window.connections && Array.isArray(window.connections)) {
+    window.connections.forEach(connection => {
+      if (connection.startElementId === noteId || connection.endElementId === noteId) {
+        noteConnections.push({
+          id: connection.id,
+          startElementId: connection.startElementId,
+          startPortPosition: connection.startPortPosition,
+          endElementId: connection.endElementId,
+          endPortPosition: connection.endPortPosition,
+          label: connection.label || '',
+          style: connection.style || {
+            index: 0,
+            stroke: '#4a4dff',
+            strokeWidth: '2',
+            dashArray: 'none',
+            opacity: '1'
+          }
+        });
+      }
+    });
+  }
+  
   // Esempio di oggetto stato che potrebbe essere salvato
   const noteState = {
     id: noteId,
@@ -1254,7 +1349,8 @@ function saveNoteState(noteId) {
       width: note.offsetWidth,
       height: note.offsetHeight
     },
-    blocks: []
+    blocks: [],
+    connections: noteConnections // Aggiungiamo le connessioni allo stato della nota
   };
   
   // Raccogli i dati dei blocchi
@@ -1618,7 +1714,6 @@ let activeConnection = null;
 let connectionStartElement = null;
 let connectionStartPort = null;
 let connectionPath = null;
-let connections = [];
 let selectedConnectionId = null; // ID della connessione selezionata
 let connectionFloatingBar = null; // Riferimento alla floating bar delle connessioni
 let connectionLabelContainer = null; // Contenitore per l'etichetta della connessione
@@ -1757,7 +1852,20 @@ function handleConnectionMove(e) {
 
 // Aggiorna il path della connessione
 function updateConnectionPath(startX, startY, endX, endY, positions = null) {
-  if (!connectionPath) return;
+  // Determina quale path aggiornare
+  let pathToUpdate = connectionPath;
+  if (!pathToUpdate && positions && positions.connectionId) {
+    // Se non stiamo creando una nuova connessione ma aggiornando una esistente
+    const existingConnection = window.connections?.find(conn => conn.id === positions.connectionId);
+    if (existingConnection && existingConnection.path) {
+      pathToUpdate = existingConnection.path;
+    }
+  }
+  
+  if (!pathToUpdate) {
+    console.warn('updateConnectionPath: nessun path da aggiornare');
+    return;
+  }
   
   // Ottieni le posizioni delle porte se non fornite (per nuove connessioni in fase di trascinamento)
   let startPosition = positions?.startPosition || connectionStartPort?.getAttribute('data-position') || 'right';
@@ -1888,13 +1996,13 @@ function updateConnectionPath(startX, startY, endX, endY, positions = null) {
   
   // Genera il path SVG per la curva di Bezier
   const d = `M ${startX} ${startY} C ${adjustedCP1X} ${adjustedCP1Y}, ${adjustedCP2X} ${adjustedCP2Y}, ${endX} ${endY}`;
-  connectionPath.setAttribute('d', d);
+  pathToUpdate.setAttribute('d', d);
   
   // Memorizza i dati per debugging e per calcolo della posizione delle etichette
-  connectionPath.setAttribute('data-cp1x', adjustedCP1X);
-  connectionPath.setAttribute('data-cp1y', adjustedCP1Y);
-  connectionPath.setAttribute('data-cp2x', adjustedCP2X);
-  connectionPath.setAttribute('data-cp2y', adjustedCP2Y);
+  pathToUpdate.setAttribute('data-cp1x', adjustedCP1X);
+  pathToUpdate.setAttribute('data-cp1y', adjustedCP1Y);
+  pathToUpdate.setAttribute('data-cp2x', adjustedCP2X);
+  pathToUpdate.setAttribute('data-cp2y', adjustedCP2Y);
 }
 
 // Miglioro la funzione highlightValidPorts per evidenziare meglio i port disponibili
@@ -2086,18 +2194,19 @@ function createPermanentConnection(startElement, startPort, endElement, endPort)
   }
   
   // Se non abbiamo un path temporaneo, crea un nuovo path
-  if (!connectionPath) {
-    connectionPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    connectionPath.setAttribute('stroke', '#4a4dff');
-    connectionPath.setAttribute('stroke-width', '2');
-    connectionPath.setAttribute('fill', 'none');
-    connectionPath.style.pointerEvents = 'auto';
-    connectionPath.style.cursor = 'pointer';
-    svg.appendChild(connectionPath);
+  let pathToUse = connectionPath;
+  if (!pathToUse) {
+    pathToUse = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pathToUse.setAttribute('stroke', '#4a4dff');
+    pathToUse.setAttribute('stroke-width', '2');
+    pathToUse.setAttribute('fill', 'none');
+    pathToUse.style.pointerEvents = 'auto';
+    pathToUse.style.cursor = 'pointer';
+    svg.appendChild(pathToUse);
   } else {
     // Assicurati che il path sia figlio dell'SVG corretto
-    if (connectionPath.parentElement !== svg) {
-      svg.appendChild(connectionPath);
+    if (pathToUse.parentElement !== svg) {
+      svg.appendChild(pathToUse);
     }
   }
   
@@ -2111,7 +2220,7 @@ function createPermanentConnection(startElement, startPort, endElement, endPort)
     startPortPosition: startPort.getAttribute('data-position'),
     endElementId: endElement.id,
     endPortPosition: endPort.getAttribute('data-position'),
-    path: connectionPath,
+    path: pathToUse,
     label: '', // Campo per l'etichetta della connessione
     labelElement: null, // Riferimento all'elemento DOM per l'etichetta
     style: {  // Stile predefinito della connessione
@@ -2124,35 +2233,38 @@ function createPermanentConnection(startElement, startPort, endElement, endPort)
   };
   
   // Aggiungi attributi al path per identificare la connessione
-  connectionPath.setAttribute('id', connection.id);
-  connectionPath.setAttribute('data-start-element', connection.startElementId);
-  connectionPath.setAttribute('data-start-port', connection.startPortPosition);
-  connectionPath.setAttribute('data-end-element', connection.endElementId);
-  connectionPath.setAttribute('data-end-port', connection.endPortPosition);
-  connectionPath.setAttribute('class', 'connection-path');
-  connectionPath.setAttribute('data-style-index', '0'); // Stile iniziale
+  pathToUse.setAttribute('id', connection.id);
+  pathToUse.setAttribute('data-start-element', connection.startElementId);
+  pathToUse.setAttribute('data-start-port', connection.startPortPosition);
+  pathToUse.setAttribute('data-end-element', connection.endElementId);
+  pathToUse.setAttribute('data-end-port', connection.endPortPosition);
+  pathToUse.setAttribute('class', 'connection-path');
+  pathToUse.setAttribute('data-style-index', '0'); // Stile iniziale
   
   // Aggiungi interattività al path
-  connectionPath.style.pointerEvents = 'auto';
-  connectionPath.style.cursor = 'pointer';
+  pathToUse.style.pointerEvents = 'auto';
+  pathToUse.style.cursor = 'pointer';
   
   // Aggiungi event listener per la selezione della connessione con click singolo
-  connectionPath.addEventListener('click', (e) => {
+  pathToUse.addEventListener('click', (e) => {
     e.stopPropagation(); // Previene che l'evento si propaghi
     selectConnection(connection.id);
   });
   
   // Aggiungi event listener per eliminare la connessione con doppio click
-  connectionPath.addEventListener('dblclick', (e) => {
+  pathToUse.addEventListener('dblclick', (e) => {
     e.stopPropagation(); // Previene che l'evento si propaghi
     deleteConnection(connection.id);
   });
   
   // Aggiungi tooltip alla connessione
-  connectionPath.setAttribute('title', 'Click per gestire, doppio click per eliminare');
+  pathToUse.setAttribute('title', 'Click per gestire, doppio click per eliminare');
   
   // Aggiungi la connessione all'array
-  connections.push(connection);
+  if (!window.connections) {
+    window.connections = [];
+  }
+  window.connections.push(connection);
   
   // Forza aggiornamento della posizione della connessione per evitare che scompaia
   try {
@@ -2180,7 +2292,28 @@ function createPermanentConnection(startElement, startPort, endElement, endPort)
   console.log(`Creata connessione ${connection.id} da ${connection.startElementId} (${connection.startPortPosition}) a ${connection.endElementId} (${connection.endPortPosition})`);
   
   // Salva lo stato del workflow
-  saveWorkflowState(currentWorkflowId);
+  try {
+    // Solo se currentWorkflowId è definito
+    if (typeof currentWorkflowId !== 'undefined' && currentWorkflowId) {
+      saveWorkflowState(currentWorkflowId);
+    } else {
+      console.log('currentWorkflowId non definito, salto saveWorkflowState');
+      
+      // Salviamo comunque lo stato delle note collegate
+      if (typeof saveNoteState === 'function') {
+        saveNoteState(startElement.id);
+        saveNoteState(endElement.id);
+      }
+    }
+  } catch (error) {
+    console.error('Errore durante il salvataggio del workflow:', error);
+  }
+
+  // Resetta il path temporaneo solo se non viene usato per la connessione permanente
+  if (connectionPath && connectionPath !== pathToUse) {
+    connectionPath.remove();
+    connectionPath = null;
+  }
 
   return connection;
 }
@@ -2307,6 +2440,7 @@ function updateConnectionPosition(connection) {
     
     // Passa le posizioni delle porte e delle informazioni sugli elementi per il calcolo dei punti di controllo
     const positions = {
+      connectionId: connection.id, // Aggiungi ID della connessione per identificare il path corretto
       startPosition: connection.startPortPosition,
       endPosition: connection.endPortPosition,
       startElementBox: startElementBox,
@@ -3406,14 +3540,63 @@ function handleNoteMouseMove(e) {
   // Aggiorna la posizione della nota
   draggedNote.style.transform = `translate(${noteX}px, ${noteY}px)`;
   
-  // Aggiorna immediatamente tutte le connessioni legate a questa nota
-  if (connections && connections.length > 0) {
+  // Ottieni le connessioni dalla variabile globale e dallo stato salvato
+  const allConnections = [];
+  
+  // Aggiungi le connessioni dalla variabile globale
+  if (connections && Array.isArray(connections)) {
     connections.forEach(connection => {
-      // Verifica se questa connessione è collegata alla nota trascinata
       if (connection.startElementId === draggedNote.id || 
           connection.endElementId === draggedNote.id) {
-        updateConnectionPosition(connection);
+        allConnections.push(connection);
       }
+    });
+  }
+  
+  // Ottieni anche le connessioni salvate nello stato della nota
+  try {
+    const savedStateJSON = localStorage.getItem(`note_${draggedNote.id}`);
+    if (savedStateJSON) {
+      const savedState = JSON.parse(savedStateJSON);
+      if (savedState && savedState.connections && Array.isArray(savedState.connections)) {
+        savedState.connections.forEach(connection => {
+          // Controlla se questa connessione è già presente nell'array allConnections
+          const exists = allConnections.some(conn => conn.id === connection.id);
+          if (!exists) {
+            // Trova gli elementi e le porte
+            const startElement = document.getElementById(connection.startElementId);
+            const endElement = document.getElementById(connection.endElementId);
+            
+            if (startElement && endElement) {
+              const startPort = startElement.querySelector(`.connection-port[data-position="${connection.startPortPosition}"]`);
+              const endPort = endElement.querySelector(`.connection-port[data-position="${connection.endPortPosition}"]`);
+              
+              if (startPort && endPort) {
+                // Se la connessione esiste ma non è nell'array connections, creala o aggiungerla
+                const existingConnection = window.connections?.find(c => c.id === connection.id);
+                if (existingConnection) {
+                  allConnections.push(existingConnection);
+                } else if (typeof window.createPermanentConnection === 'function') {
+                  const newConnection = window.createPermanentConnection(startElement, startPort, endElement, endPort);
+                  if (newConnection) {
+                    allConnections.push(newConnection);
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Errore nel recuperare le connessioni salvate:", error);
+  }
+  
+  // Aggiorna immediatamente tutte le connessioni trovate
+  if (allConnections.length > 0) {
+    console.log(`Aggiornamento di ${allConnections.length} connessioni per la nota ${draggedNote.id}`);
+    allConnections.forEach(connection => {
+      updateConnectionPosition(connection);
     });
   }
 }
