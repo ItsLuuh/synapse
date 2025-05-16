@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+package synapse.workflow;
+
+message Position {
+  float x = 1;
+  float y = 2;
+}
+
+message Size {
+  float width = 1;
+  float height = 2;
+}
+
+message Note {
+  string id = 1;
+  string title = 2;
+  Position position = 3;
+  Size size = 4;
+  string content = 5; // Per ora, potrebbe essere JSON o un altro formato serializzato
+  // Aggiungere altri campi specifici della nota se necessario, es. colore, tipo, ecc.
+}
+
+message ConnectionStyle {
+  string stroke = 1;
+  float strokeWidth = 2;
+  string dashArray = 3;
+  float opacity = 4;
+  int32 index = 5; // Indice dello stile, se applicabile
+}
+
+message Connection {
+  string id = 1;
+  string start_element_id = 2;
+  string start_port_position = 3;
+  string end_element_id = 4;
+  string end_port_position = 5;
+  optional string label = 6;
+  optional ConnectionStyle style = 7;
+}
+
+message KanbanCard {
+  string id = 1;
+  string title = 2;
+  optional string content = 3; // Potrebbe essere testo semplice o un ID di una nota esistente
+  int32 order = 4;         // Ordine della card nella colonna
+}
+
+message KanbanColumn {
+  string id = 1;
+  string title = 2;
+  repeated KanbanCard cards = 3;
+  int32 order = 4;            // Ordine della colonna nella board
+}
+
+message KanbanBoard {
+  string id = 1;
+  string title = 2;
+  repeated KanbanColumn columns = 3;
+  Position position = 4;      // Posizione della board nel canvas
+  Size size = 5;              // Dimensioni della board nel canvas
+}
+
+// Definizione di una porta di input/output per i nodi AI
+message NodePort {
+  string id = 1;
+  string name = 2;
+  string type = 3;  // Tipo di dati (testo, numero, booleano, ecc.)
+  bool is_input = 4; // true per input, false per output
+  optional string default_value = 5;
+}
+
+// Proprietà configurabili del nodo AI
+message NodeProperty {
+  string id = 1;
+  string name = 2;
+  string type = 3; // Tipo di proprietà (testo, numero, booleano, dropdown, ecc.)
+  string value = 4;
+  optional string description = 5;
+}
+
+// Messaggio per i nodi AI
+message AINode {
+  string id = 1;
+  string type = 2; // Tipo di nodo AI (TextProcessor, ImageGenerator, etc.)
+  string name = 3; // Nome visualizzato
+  Position position = 4;
+  optional string description = 5;
+  repeated NodePort ports = 6;
+  repeated NodeProperty properties = 7;
+  optional string category = 8; // Categoria del nodo (Input, Processing, Output, etc.)
+  optional string icon = 9;     // Icona per identificare visivamente il nodo
+  string state = 10;           // Stato del nodo (idle, processing, completed, error)
+  optional string error_message = 11; // Messaggio di errore se state = "error"
+}
+
+// Connettore specifico tra nodi AI
+message NodeConnector {
+  string id = 1;
+  string source_node_id = 2;
+  string source_port_id = 3;
+  string target_node_id = 4;
+  string target_port_id = 5;
+}
+
+message WorkflowState {
+  string id = 1;
+  string name = 2;
+  repeated Note notes = 3;
+  repeated Connection connections = 4;
+  optional double canvas_scale = 5;
+  optional double canvas_offset_x = 6;
+  optional double canvas_offset_y = 7;
+  repeated KanbanBoard kanban_boards = 8; // Aggiunta delle Kanban Boards
+  repeated AINode ai_nodes = 9; // Inclusione dei nodi AI
+  repeated NodeConnector node_connectors = 10; // Connettori tra nodi AI
+  map<string, string> metadata = 11; // Per informazioni aggiuntive flessibili
+}

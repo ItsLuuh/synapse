@@ -97,6 +97,18 @@ contextBridge.exposeInMainWorld(
     // System information
     getSystemInfo: () => getSystemInfo(),
     
+    // NUOVO: Funzione per assicurare/creare la cartella Synapse Workflows
+    ensureSynapseWorkflowsDir: () => ipcRenderer.invoke('ensure-synapse-workflows-dir'),
+    
+    // NUOVO: Funzione per elencare i file .syn
+    listSynFiles: () => ipcRenderer.invoke('list-syn-files'),
+    
+    // NUOVO: Funzione per salvare un file .syn
+    saveWorkflowFile: (fileName, content) => ipcRenderer.invoke('save-workflow-file', { fileName, content }),
+    
+    // NUOVO: Funzione per caricare un file .syn
+    loadWorkflowFile: (fileName) => ipcRenderer.invoke('load-workflow-file', fileName),
+    
     // Nuovi handler per i pulsanti della thumbnailbar
     onThumbnailCamera: (callback) => ipcRenderer.on('thumbnail-camera', () => callback()),
     onThumbnailVideo: (callback) => ipcRenderer.on('thumbnail-video', () => callback()),

@@ -5,10 +5,10 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: #1e1e1e;
+  background-color: #1e1e1e; /* Colore di sfondo generale per l'area workflow */
 }
 
-/* Layout principale con sidebar a sinistra, contenuto centrale e sidebar a destra */
+/* Layout principale con sidebar a sinistra, contenuto centrale */
 .workflow-main-layout {
   display: flex;
   width: 100%;
@@ -16,8 +16,51 @@
   overflow: hidden;
 }
 
-/* Sidebar sinistra per la navigazione file */
-.workflow-left-sidebar {
+/* NUOVA Sidebar sinistra per i file del Workflow */
+.workflow-file-sidebar {
+  width: 250px; /* Larghezza della sidebar dei file */
+  height: 100%;
+  background-color: #2c2c2c; /* Un colore leggermente diverso per distinguerla */
+  border-right: 1px solid #3a3a3a; /* Bordo per separazione */
+  padding: 10px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  color: #ccc; /* Colore testo di base per la sidebar */
+  z-index: 40; /* Assicura che sia sopra altri elementi se necessario */
+}
+
+/* Stile per un eventuale titolo nella sidebar dei file */
+.workflow-file-sidebar h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #fff;
+  font-size: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+/* Stile per la lista dei file */
+.workflow-file-sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto; /* Per scrollare se ci sono molti file */
+}
+
+.workflow-file-sidebar li {
+  padding: 8px 5px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.workflow-file-sidebar li:hover {
+  background-color: #3a3a3a;
+}
+
+/* Rimuoviamo la vecchia .workflow-left-sidebar se non più usata o la adattiamo */
+/* .workflow-left-sidebar {
   width: 280px;
   height: 100%;
   background-color: #252525;
@@ -28,7 +71,7 @@
   flex-direction: column;
   position: relative;
   z-index: 20;
-}
+} */
 
 /* Contenitore centrale che include toolbar e workspace */
 .workflow-center-container {
@@ -354,24 +397,27 @@
 /* Nodi AI e connettori */
 .workspace-ai-node {
   position: absolute;
-  background-color: #2d2d2d;
-  border: 1px solid #3a3a3a;
+  background-color: #252525;
+  border: 2px solid #5c5cff;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  width: 240px;
-  z-index: 10;
+  box-shadow: 0 3px 12px rgba(92, 92, 255, 0.3);
+  width: 220px;
+  height: auto;
+  min-height: 120px;
   user-select: none;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   will-change: transform;
   transform: translate3d(0, 0, 0);
   transition: box-shadow 0.2s ease, transform 0.1s ease;
 }
 
 .workspace-ai-node.dragging {
-  will-change: transform;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-  transition: none;
-  cursor: grabbing;
+  box-shadow: 0 8px 20px rgba(92, 92, 255, 0.5);
   z-index: 20;
+  cursor: grabbing;
 }
 
 .ai-node-header {
@@ -379,23 +425,60 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 12px;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
   background-color: #5c5cff;
   color: white;
-  font-size: 14px;
   font-weight: 500;
+  font-size: 14px;
   cursor: move;
 }
 
-.ai-component-content {
+.ai-node-content {
+  flex: 1;
   padding: 15px;
-  min-height: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #e0e0e0;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.node-state {
+  height: 6px;
+  width: 100%;
+  background-color: #333;
+  position: relative;
+}
+
+.node-state-indicator {
+  height: 100%;
+  width: 0;
+  background-color: #5c5cff;
+  transition: width 0.3s ease;
+}
+
+.node-state[data-state="processing"] .node-state-indicator {
+  width: 100%;
+  background: linear-gradient(90deg, #5c5cff 0%, #8a8aff 50%, #5c5cff 100%);
+  background-size: 200% 100%;
+  animation: progress-animation 1.5s linear infinite;
+}
+
+.node-state[data-state="completed"] .node-state-indicator {
+  width: 100%;
+  background-color: #4CAF50;
+}
+
+.node-state[data-state="error"] .node-state-indicator {
+  width: 100%;
+  background-color: #F44336;
+}
+
+@keyframes progress-animation {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
 }
 
 .node-actions {
@@ -418,24 +501,35 @@
   color: white;
 }
 
+/* Connettori e porte dei nodi */
 .node-connector {
   position: absolute;
   height: 2px;
   background-color: #5c5cff;
   transform-origin: left center;
-  pointer-events: none;
   z-index: 5;
+  pointer-events: none;
 }
 
 .node-connector::after {
   content: '';
   position: absolute;
-  right: -5px;
+  right: -6px;
   top: -4px;
-  width: 10px;
-  height: 10px;
-  background-color: #5c5cff;
-  border-radius: 50%;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #5c5cff;
+}
+
+.node-connector.temp {
+  background-color: rgba(92, 92, 255, 0.5);
+  border-style: dashed;
+}
+
+.node-connector.temp::after {
+  border-left-color: rgba(92, 92, 255, 0.5);
 }
 
 .node-connector-port {
@@ -443,14 +537,22 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background-color: #444;
+  background-color: #333;
   border: 2px solid #5c5cff;
+  z-index: 16;
   cursor: pointer;
-  z-index: 15;
+  transition: transform 0.1s ease, background-color 0.1s ease;
 }
 
 .node-connector-port:hover {
+  transform: scale(1.2);
   background-color: #5c5cff;
+}
+
+.node-connector-port.highlight {
+  background-color: #4CAF50;
+  border-color: #4CAF50;
+  box-shadow: 0 0 5px #4CAF50;
 }
 
 .node-connector-port.input {
@@ -463,6 +565,157 @@
   right: -6px;
   top: 50%;
   transform: translateY(-50%);
+}
+
+/* Toolbar dei nodi AI */
+.toolbar-expandable-options {
+  display: flex;
+  padding: 10px;
+  background-color: #333;
+  border-radius: 10px;
+  margin-top: 5px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  z-index: 1001;
+  overflow-x: auto;
+  max-width: 90vw;
+  gap: 15px;
+}
+
+.ai-node-category {
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+}
+
+.ai-category-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e0e0e0;
+  padding: 5px 0;
+  margin-bottom: 5px;
+  border-bottom: 1px solid #555;
+}
+
+.ai-nodes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ai-node-btn {
+  background-color: #444;
+  border: none;
+  color: #e0e0e0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.ai-node-btn:hover {
+  background-color: #5c5cff;
+  color: white;
+  transform: translateX(3px);
+}
+
+.ai-node-btn i {
+  width: 16px;
+  text-align: center;
+}
+
+/* Pannello di configurazione dei nodi */
+.node-config-panel {
+  position: fixed;
+  background-color: #252525;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 15px;
+  width: 300px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+  z-index: 1050;
+  font-size: 14px;
+  color: #e0e0e0;
+}
+
+.node-config-panel h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #444;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.config-field {
+  margin-bottom: 15px;
+}
+
+.config-field label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+  color: #bbb;
+}
+
+.config-input,
+.config-select,
+.config-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background-color: #333;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 13px;
+}
+
+.config-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.config-select {
+  height: 36px;
+}
+
+.config-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.config-btn {
+  padding: 8px 15px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.config-save {
+  background-color: #5c5cff;
+  color: white;
+}
+
+.config-save:hover {
+  background-color: #4a4aff;
+  transform: translateY(-2px);
+}
+
+.config-cancel {
+  background-color: #555;
+  color: #e0e0e0;
+}
+
+.config-cancel:hover {
+  background-color: #666;
 }
 
 /* Note styles with hardware acceleration */
@@ -509,8 +762,9 @@
   border: 2px solid #5c5cff;
   border-radius: 8px;
   box-shadow: 0 3px 12px rgba(92, 92, 255, 0.3);
-  width: 180px;
-  height: 90px;
+  width: 220px;
+  height: auto;
+  min-height: 120px;
   user-select: none;
   z-index: 15;
   display: flex;
@@ -518,30 +772,97 @@
   overflow: hidden;
   will-change: transform;
   transform: translate3d(0, 0, 0);
+  transition: box-shadow 0.2s ease, transform 0.1s ease;
+}
+
+.workspace-ai-node.dragging {
+  box-shadow: 0 8px 20px rgba(92, 92, 255, 0.5);
+  z-index: 20;
+  cursor: grabbing;
 }
 
 .ai-node-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: 10px 12px;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
   background-color: #5c5cff;
   color: white;
   font-weight: 500;
-  font-size: 13px;
+  font-size: 14px;
+  cursor: move;
 }
 
 .ai-node-content {
   flex: 1;
-  padding: 10px;
+  padding: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #e0e0e0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.node-state {
+  height: 6px;
+  width: 100%;
+  background-color: #333;
+  position: relative;
+}
+
+.node-state-indicator {
+  height: 100%;
+  width: 0;
+  background-color: #5c5cff;
+  transition: width 0.3s ease;
+}
+
+.node-state[data-state="processing"] .node-state-indicator {
+  width: 100%;
+  background: linear-gradient(90deg, #5c5cff 0%, #8a8aff 50%, #5c5cff 100%);
+  background-size: 200% 100%;
+  animation: progress-animation 1.5s linear infinite;
+}
+
+.node-state[data-state="completed"] .node-state-indicator {
+  width: 100%;
+  background-color: #4CAF50;
+}
+
+.node-state[data-state="error"] .node-state-indicator {
+  width: 100%;
+  background-color: #F44336;
+}
+
+@keyframes progress-animation {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+
+.node-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.node-action {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 4px;
   font-size: 12px;
 }
 
-/* Connector lines between nodes */
+.node-action:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+  color: white;
+}
+
+/* Connettori e porte dei nodi */
 .node-connector {
   position: absolute;
   height: 2px;
@@ -563,19 +884,36 @@
   border-left: 8px solid #5c5cff;
 }
 
+.node-connector.temp {
+  background-color: rgba(92, 92, 255, 0.5);
+  border-style: dashed;
+}
+
+.node-connector.temp::after {
+  border-left-color: rgba(92, 92, 255, 0.5);
+}
+
 .node-connector-port {
   position: absolute;
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background-color: #5c5cff;
-  border: 2px solid #252525;
+  background-color: #333;
+  border: 2px solid #5c5cff;
   z-index: 16;
   cursor: pointer;
+  transition: transform 0.1s ease, background-color 0.1s ease;
 }
 
 .node-connector-port:hover {
   transform: scale(1.2);
+  background-color: #5c5cff;
+}
+
+.node-connector-port.highlight {
+  background-color: #4CAF50;
+  border-color: #4CAF50;
+  box-shadow: 0 0 5px #4CAF50;
 }
 
 .node-connector-port.input {
@@ -588,6 +926,157 @@
   right: -6px;
   top: 50%;
   transform: translateY(-50%);
+}
+
+/* Toolbar dei nodi AI */
+.toolbar-expandable-options {
+  display: flex;
+  padding: 10px;
+  background-color: #333;
+  border-radius: 10px;
+  margin-top: 5px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  z-index: 1001;
+  overflow-x: auto;
+  max-width: 90vw;
+  gap: 15px;
+}
+
+.ai-node-category {
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+}
+
+.ai-category-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e0e0e0;
+  padding: 5px 0;
+  margin-bottom: 5px;
+  border-bottom: 1px solid #555;
+}
+
+.ai-nodes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ai-node-btn {
+  background-color: #444;
+  border: none;
+  color: #e0e0e0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.ai-node-btn:hover {
+  background-color: #5c5cff;
+  color: white;
+  transform: translateX(3px);
+}
+
+.ai-node-btn i {
+  width: 16px;
+  text-align: center;
+}
+
+/* Pannello di configurazione dei nodi */
+.node-config-panel {
+  position: fixed;
+  background-color: #252525;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 15px;
+  width: 300px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+  z-index: 1050;
+  font-size: 14px;
+  color: #e0e0e0;
+}
+
+.node-config-panel h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #444;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.config-field {
+  margin-bottom: 15px;
+}
+
+.config-field label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+  color: #bbb;
+}
+
+.config-input,
+.config-select,
+.config-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background-color: #333;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 13px;
+}
+
+.config-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.config-select {
+  height: 36px;
+}
+
+.config-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.config-btn {
+  padding: 8px 15px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.config-save {
+  background-color: #5c5cff;
+  color: white;
+}
+
+.config-save:hover {
+  background-color: #4a4aff;
+  transform: translateY(-2px);
+}
+
+.config-cancel {
+  background-color: #555;
+  color: #e0e0e0;
+}
+
+.config-cancel:hover {
+  background-color: #666;
 }
 
 /* Document mode styles */
@@ -2813,4 +3302,159 @@ body.macos .document-mode-overlay {
 
 body.linux .document-mode-overlay {
   padding-top: 32px;
+}
+
+/* NUOVA Toolbar Orizzontale Workflow - Ora Flottante */
+.workflow-horizontal-toolbar {
+  display: flex; /* Allinea i figli (main-buttons e expandable-options) in riga */
+  flex-direction: column; /* Mette le opzioni espandibili SOTTO i pulsanti principali */
+  align-items: flex-start; /* Allinea gli elementi a sinistra */
+  background-color: #2c2c2c; /* Sfondo leggermente più scuro per distinguerla */
+  padding: 8px 15px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+  position: absolute; /* Per renderla flottante */
+  top: 20px; /* Distanza dall'alto */
+  left: 50%; /* Centrata orizzontalmente */
+  transform: translateX(-50%); /* Correzione per centrare perfettamente */
+  z-index: 1000; /* Assicura che sia sopra gli altri elementi */
+  gap: 5px; /* Spazio tra i gruppi di pulsanti e le opzioni espandibili */
+}
+
+.toolbar-main-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* Spazio tra i pulsanti */
+}
+
+.toolbar-expandable-options {
+  display: none; /* Nascosto di default */
+  background-color: #333333; /* Sfondo per la sezione espansa */
+  padding: 10px;
+  border-radius: 8px;
+  margin-top: 8px; /* Spazio dalla barra principale */
+  width: auto; /* Larghezza automatica in base al contenuto */
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  flex-direction: column; /* Elementi in colonna */
+  gap: 8px;
+}
+
+.toolbar-expandable-options.visible {
+  display: flex; /* Mostra quando la classe .visible è presente */
+}
+
+/* Nuovi stili per la toolbar della matita */
+.pencil-options-toolbar {
+  display: none; /* Nascosto di default */
+  background-color: #333333; /* Sfondo simile alle opzioni espandibili */
+  padding: 10px;
+  border-radius: 8px;
+  margin-top: 8px; /* Spazio dalla barra principale */
+  width: auto; /* Larghezza automatica */
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  flex-direction: row; /* Pulsanti in riga */
+  align-items: center;
+  gap: 8px;
+}
+
+.pencil-options-toolbar.visible {
+  display: flex; /* Mostra quando .visible è presente */
+}
+
+/* Stile per il pulsante colore attivo */
+.toolbar-btn.color-btn.active {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #5c5cff; /* Doppio bordo per evidenziare */
+  transform: scale(1.1); /* Leggero ingrandimento */
+}
+
+/* Stile per il pulsante stroke attivo */
+.toolbar-btn.stroke-btn.active {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #8f8f8f; /* Bordo grigio per differenziare da colore */
+  transform: scale(1.1);
+}
+
+/* Stili per i controlli dello stroke nella pencil-options-toolbar */
+.stroke-slider {
+  width: 100px; /* O la larghezza che preferisci */
+  margin: 0 8px;
+  cursor: pointer;
+}
+
+.stroke-value-display {
+  min-width: 30px; /* Larghezza minima per il display del valore */
+  text-align: center;
+  color: #ccc;
+  font-size: 13px;
+  background-color: #2c2c2c;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid #444;
+}
+
+/* Stile per il pulsante matita attivo */
+.toolbar-btn.pencil-tool-btn.active {
+  background-color: #5c5cff; /* Esempio: colore blu per indicare attivazione */
+  color: #fff;
+  box-shadow: 0 0 5px rgba(92, 92, 255, 0.7);
+}
+
+.pencil-options-toolbar.visible {
+  display: flex;
+}
+
+.toolbar-btn.color-btn.active {
+  transform: scale(1.2);
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+}
+
+.toolbar-btn.stroke-btn.active {
+  background-color: #4a4aff;
+  color: white;
+}
+
+.stroke-slider {
+  width: 80px;
+  margin: 0 5px;
+}
+
+.stroke-value-display {
+  min-width: 30px;
+  text-align: center;
+  color: #e0e0e0;
+  font-size: 12px;
+}
+
+/* Utile per visualizzare lo stato attivo dell'icona matita */
+.toolbar-btn.pencil-tool-btn.active {
+  background-color: #4a4aff;
+  color: white;
+  transform: translateY(-2px);
+}
+
+/* Toolbar per i nodi AI */
+.ai-nodes-toolbar {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  display: none;
+  padding: 15px;
+  background-color: #333;
+  border-radius: 10px;
+  margin-top: 5px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  z-index: 1001;
+  overflow-x: auto;
+  gap: 15px;
+  max-width: 90vw;
+}
+
+.ai-nodes-toolbar.visible {
+  display: flex;
+}
+
+/* Utile per visualizzare lo stato attivo del pulsante AI */
+.toolbar-btn.ai-nodes-btn.active {
+  background-color: #4a4aff;
+  color: white;
+  transform: translateY(-2px);
 }

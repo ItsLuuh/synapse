@@ -1,5 +1,8 @@
 // Workflow functionality for Synapse - Notion style
 
+// Utilizzo require per Konva invece di import (compatibile con script non-modulo)
+const Konva = require('konva');
+
 let workflowActive = false;
 let activeNoteId = null;
 let lastNotePosition = { x: 50, y: 50 };
@@ -86,8 +89,14 @@ const maxStrokeWidth = 50;
 let isPencilActive = false;
 let isDrawing = false;
 let drawingCanvas = null;
-let drawingCtx = null;
-let lastDrawingPoint = { x: 0, y: 0 };
+// let drawingCtx = null; // RIMOSSO: Non più necessario con Konva
+let lastDrawingPoint = { x: 0, y: 0 }; // Potrebbe non essere più necessario o usato diversamente
+
+// AGGIUNTO: Variabili per Konva
+let konvaStage = null;
+let konvaLayer = null;
+let currentKonvaLine = null;
+let currentDrawingColor = '#000000'; // Aggiunta inizializzazione default
 
 // Pianifica l'aggiornamento delle connessioni in modo ottimizzato
 function scheduleConnectionsUpdate() {
@@ -188,455 +197,6 @@ window.workflowFunctions = window.workflowFunctions || {};
 window.workflowFunctions.initialize = function() {
   initializeWorkflow();
 };
-
-// Funzione per creare nodi AI nel workspace
-window.createAINode = function(nodeType, x, y) {
-  console.log(`[LOG] Creazione nodo AI di tipo: ${nodeType} in posizione (${x}, ${y})`);
-  
-  // Ottieni il workspace
-  const workspaceArea = document.getElementById('workflowWorkspace');
-  if (!workspaceArea) {
-    console.error('Workspace non trovato');
-    return null;
-  }
-  
-  // Genera un ID univoco per il nodo
-  const nodeId = `ai-node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  
-  // Crea il nuovo elemento nodo
-  const node = document.createElement('div');
-  node.id = nodeId;
-  node.className = 'workspace-ai-node';
-  node.dataset.nodeType = nodeType;
-  
-  // Configura l'aspetto e il contenuto del nodo in base al tipo
-  let nodeTitle = '';
-  let nodeIcon = '';
-  let nodeColor = '#5c5cff'; // Colore default
-  
-  switch(nodeType) {
-    case 'text-input':
-      nodeTitle = 'Input Testo';
-      nodeIcon = 'fas fa-font';
-      break;
-    case 'data-input':
-      nodeTitle = 'Input Dati';
-      nodeIcon = 'fas fa-database';
-      break;
-    case 'file-input':
-      nodeTitle = 'Input File';
-      nodeIcon = 'fas fa-file';
-      break;
-    case 'text-processor':
-      nodeTitle = 'Elaborazione Testo';
-      nodeIcon = 'fas fa-cogs';
-      nodeColor = '#5c9fff';
-      break;
-    case 'filter':
-      nodeTitle = 'Filtro';
-      nodeIcon = 'fas fa-filter';
-      nodeColor = '#5c9fff';
-      break;
-    case 'transformer':
-      nodeTitle = 'Transformer';
-      nodeIcon = 'fas fa-random';
-      nodeColor = '#5c9fff';
-      break;
-    case 'text-generator':
-      nodeTitle = 'Genera Testo';
-      nodeIcon = 'fas fa-robot';
-      nodeColor = '#ff5c5c';
-      break;
-    case 'classifier':
-      nodeTitle = 'Classificatore';
-      nodeIcon = 'fas fa-tags';
-      nodeColor = '#ff5c5c';
-      break;
-    case 'sentiment':
-      nodeTitle = 'Analisi Sentiment';
-      nodeIcon = 'fas fa-smile';
-      nodeColor = '#ff5c5c';
-      break;
-    case 'text-output':
-      nodeTitle = 'Output Testo';
-      nodeIcon = 'fas fa-file-alt';
-      nodeColor = '#5cff5c';
-      break;
-    case 'visualization':
-      nodeTitle = 'Visualizzazione';
-      nodeIcon = 'fas fa-chart-bar';
-      nodeColor = '#5cff5c';
-      break;
-    case 'notification':
-      nodeTitle = 'Notifica';
-      nodeIcon = 'fas fa-bell';
-      nodeColor = '#5cff5c';
-      break;
-    default:
-      nodeTitle = 'Nodo Generico';
-      nodeIcon = 'fas fa-question';
-  }
-  
-  // Struttura HTML del nodo
-  node.innerHTML = `
-    <div class="ai-node-header" style="background-color: ${nodeColor};">
-      <span><i class="${nodeIcon}"></i> ${nodeTitle}</span>
-      <div class="node-actions">
-        <button class="node-action" title="Configura"><i class="fas fa-cog"></i></button>
-        <button class="node-action" title="Elimina"><i class="fas fa-times"></i></button>
-      </div>
-    </div>
-    <div class="ai-node-content">
-      <div class="node-description">Configura questo nodo per iniziare</div>
-    </div>
-    <div class="node-state" data-state="idle">
-      <div class="node-state-indicator"></div>
-    </div>
-    <div class="node-connector-port input" title="Input"></div>
-    <div class="node-connector-port output" title="Output"></div>
-  `;
-  
-  // Posiziona il nodo alle coordinate specificate
-  node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-  
-  // Aggiungi il nodo al workspace
-  workspaceArea.appendChild(node);
-  
-  // Configura eventi per il trascinamento
-  setupAINodeEventHandlers(node);
-  
-  // Salva lo stato iniziale del nodo
-  saveAINodeState(nodeId, {
-    id: nodeId,
-    type: nodeType,
-    position: { x, y },
-    title: nodeTitle,
-    icon: nodeIcon,
-    color: nodeColor,
-    state: 'idle'
-  });
-  
-  // Aggiorna la minimappa
-  if (typeof updateMinimap === 'function') {
-    updateMinimap();
-  }
-  
-  console.log(`[LOG] Nodo AI creato con ID: ${nodeId}`);
-  return node;
-};
-
-// Funzione per configurare gli eventi del nodo AI
-function setupAINodeEventHandlers(node) {
-  if (!node) return;
-  
-  let isDragging = false;
-  let dragOffsetX = 0;
-  let dragOffsetY = 0;
-  
-  // Gestione del trascinamento dell'header del nodo
-  const nodeHeader = node.querySelector('.ai-node-header');
-  if (nodeHeader) {
-    nodeHeader.addEventListener('mousedown', function(e) {
-      if (e.target.closest('.node-action')) return; // Ignora se si clicca su un'azione
-      
-      isDragging = true;
-      node.classList.add('dragging');
-      
-      // Calcola l'offset del mouse rispetto all'angolo superiore sinistro del nodo
-      const rect = node.getBoundingClientRect();
-      dragOffsetX = e.clientX - rect.left;
-      dragOffsetY = e.clientY - rect.top;
-      
-      // Aggiungi event listeners temporanei per il trascinamento
-      document.addEventListener('mousemove', handleNodeDragMove);
-      document.addEventListener('mouseup', handleNodeDragEnd);
-      
-      e.preventDefault();
-    });
-  }
-  
-  // Funzione di trascinamento del nodo
-  function handleNodeDragMove(e) {
-    if (!isDragging) return;
-    
-    // Calcola la nuova posizione considerando lo scale del canvas
-    const scale = canvasScale;
-    const x = (e.clientX - dragOffsetX) / scale + canvasOffsetX / scale;
-    const y = (e.clientY - dragOffsetY) / scale + canvasOffsetY / scale;
-    
-    // Aggiorna la posizione del nodo
-    node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-    
-    // Aggiorna le connessioni se ce ne sono
-    if (typeof scheduleConnectionsUpdate === 'function') {
-      scheduleConnectionsUpdate();
-    }
-    
-    e.preventDefault();
-  }
-  
-  // Funzione di rilascio del nodo
-  function handleNodeDragEnd(e) {
-    if (!isDragging) return;
-    
-    isDragging = false;
-    node.classList.remove('dragging');
-    
-    // Calcola la posizione finale
-    const scale = canvasScale;
-    const x = (e.clientX - dragOffsetX) / scale + canvasOffsetX / scale;
-    const y = (e.clientY - dragOffsetY) / scale + canvasOffsetY / scale;
-    
-    // Aggiorna lo stato salvato del nodo
-    saveAINodeState(node.id, {
-      position: { x, y }
-    });
-    
-    // Aggiorna la minimappa
-    if (typeof updateMinimap === 'function') {
-      updateMinimap();
-    }
-    
-    // Rimuovi gli event listeners temporanei
-    document.removeEventListener('mousemove', handleNodeDragMove);
-    document.removeEventListener('mouseup', handleNodeDragEnd);
-    
-    e.preventDefault();
-  }
-  
-  // Gestione delle azioni del nodo (configurazione, eliminazione)
-  const nodeActions = node.querySelectorAll('.node-action');
-  nodeActions.forEach(action => {
-    action.addEventListener('click', function(e) {
-      const isConfigAction = action.title === 'Configura';
-      const isDeleteAction = action.title === 'Elimina';
-      
-      if (isConfigAction) {
-        // Apri il pannello di configurazione
-        showNodeConfigPanel(node);
-      } else if (isDeleteAction) {
-        // Elimina il nodo
-        deleteAINode(node.id);
-      }
-      
-      e.stopPropagation();
-    });
-  });
-  
-  // Aggiungi gestione delle porte di connessione
-  setupAINodeConnectionPorts(node);
-}
-
-// Gestione delle porte di connessione per i nodi AI
-function setupAINodeConnectionPorts(node) {
-  const ports = node.querySelectorAll('.node-connector-port');
-  
-  ports.forEach(port => {
-    port.addEventListener('mousedown', function(e) {
-      // Implementa la logica per iniziare una connessione
-      console.log(`Inizio connessione dalla porta ${port.classList.contains('input') ? 'input' : 'output'} del nodo ${node.id}`);
-      // Qui dovremmo implementare la logica per creare connessioni tra nodi
-      
-      e.stopPropagation();
-    });
-    
-    // Evidenzia la porta quando il mouse ci passa sopra
-    port.addEventListener('mouseenter', function() {
-      port.classList.add('highlight');
-    });
-    
-    port.addEventListener('mouseleave', function() {
-      port.classList.remove('highlight');
-    });
-  });
-}
-
-// Funzione per salvare lo stato di un nodo AI
-function saveAINodeState(nodeId, updates) {
-  // Ottieni lo stato corrente dal localStorage o crea un nuovo oggetto
-  let nodeState;
-  try {
-    const savedState = localStorage.getItem(`ai_node_${nodeId}`);
-    nodeState = savedState ? JSON.parse(savedState) : {};
-  } catch (e) {
-    console.error(`Errore nel recuperare lo stato del nodo ${nodeId}:`, e);
-    nodeState = {};
-  }
-  
-  // Aggiorna lo stato con i nuovi valori
-  Object.assign(nodeState, updates);
-  
-  // Salva nel localStorage
-  try {
-    localStorage.setItem(`ai_node_${nodeId}`, JSON.stringify(nodeState));
-  } catch (e) {
-    console.error(`Errore nel salvare lo stato del nodo ${nodeId}:`, e);
-  }
-}
-
-// Funzione per mostrare il pannello di configurazione di un nodo
-function showNodeConfigPanel(node) {
-  // Controlla se esiste già un pannello aperto e rimuovilo
-  const existingPanel = document.querySelector('.node-config-panel');
-  if (existingPanel) {
-    existingPanel.remove();
-  }
-  
-  // Crea un nuovo pannello di configurazione
-  const configPanel = document.createElement('div');
-  configPanel.className = 'node-config-panel';
-  
-  // Ottieni il tipo di nodo
-  const nodeType = node.dataset.nodeType;
-  const nodeTitle = node.querySelector('.ai-node-header span').textContent.trim();
-  
-  // Ottieni lo stato salvato del nodo
-  let nodeState;
-  try {
-    const savedState = localStorage.getItem(`ai_node_${node.id}`);
-    nodeState = savedState ? JSON.parse(savedState) : {};
-  } catch (e) {
-    console.error(`Errore nel recuperare lo stato del nodo ${node.id}:`, e);
-    nodeState = {};
-  }
-  
-  // Genera campi di configurazione specifici per il tipo di nodo
-  let configFields = '';
-  
-  switch(nodeType) {
-    case 'text-input':
-      configFields = `
-        <div class="config-field">
-          <label for="input-text">Testo di input:</label>
-          <textarea id="input-text" class="config-textarea">${nodeState.inputText || ''}</textarea>
-        </div>
-      `;
-      break;
-    case 'text-processor':
-      configFields = `
-        <div class="config-field">
-          <label for="processor-type">Tipo di elaborazione:</label>
-          <select id="processor-type" class="config-select">
-            <option value="transform" ${nodeState.processorType === 'transform' ? 'selected' : ''}>Trasformazione</option>
-            <option value="extract" ${nodeState.processorType === 'extract' ? 'selected' : ''}>Estrazione</option>
-            <option value="summarize" ${nodeState.processorType === 'summarize' ? 'selected' : ''}>Riassunto</option>
-          </select>
-        </div>
-        <div class="config-field">
-          <label for="processor-params">Parametri:</label>
-          <textarea id="processor-params" class="config-textarea">${nodeState.processorParams || ''}</textarea>
-        </div>
-      `;
-      break;
-    // Aggiungi altri casi specifici per ogni tipo di nodo
-    default:
-      configFields = `
-        <div class="config-field">
-          <label for="node-name">Nome del nodo:</label>
-          <input type="text" id="node-name" class="config-input" value="${nodeState.name || nodeTitle}">
-        </div>
-        <div class="config-field">
-          <label for="node-description">Descrizione:</label>
-          <textarea id="node-description" class="config-textarea">${nodeState.description || ''}</textarea>
-        </div>
-      `;
-  }
-  
-  // Crea il contenuto HTML del pannello
-  configPanel.innerHTML = `
-    <h3>Configura ${nodeTitle}</h3>
-    ${configFields}
-    <div class="config-actions">
-      <button class="config-btn config-save">Salva</button>
-      <button class="config-btn config-cancel">Annulla</button>
-    </div>
-  `;
-  
-  // Posiziona il pannello vicino al nodo
-  const rect = node.getBoundingClientRect();
-  configPanel.style.top = `${rect.top}px`;
-  configPanel.style.left = `${rect.right + 10}px`;
-  
-  // Aggiungi il pannello al DOM
-  document.body.appendChild(configPanel);
-  
-  // Gestione degli eventi per i pulsanti del pannello
-  const saveBtn = configPanel.querySelector('.config-save');
-  const cancelBtn = configPanel.querySelector('.config-cancel');
-  
-  saveBtn.addEventListener('click', function() {
-    // Raccogli i valori dai campi di configurazione
-    const configData = {};
-    
-    // Aggiungi logica specifica per ogni tipo di nodo
-    switch(nodeType) {
-      case 'text-input':
-        const inputText = configPanel.querySelector('#input-text').value;
-        configData.inputText = inputText;
-        // Aggiorna anche il contenuto visibile del nodo
-        node.querySelector('.ai-node-content').innerHTML = inputText.length > 30 ? 
-          `<div class="node-description">${inputText.substring(0, 30)}...</div>` : 
-          `<div class="node-description">${inputText}</div>`;
-        break;
-      case 'text-processor':
-        configData.processorType = configPanel.querySelector('#processor-type').value;
-        configData.processorParams = configPanel.querySelector('#processor-params').value;
-        // Aggiorna il contenuto visibile
-        node.querySelector('.ai-node-content').innerHTML = 
-          `<div class="node-description">Tipo: ${configData.processorType}</div>`;
-        break;
-      default:
-        // Campi generici
-        configData.name = configPanel.querySelector('#node-name').value;
-        configData.description = configPanel.querySelector('#node-description').value;
-        // Aggiorna il titolo e la descrizione del nodo
-        if (configData.name) {
-          node.querySelector('.ai-node-header span').textContent = configData.name;
-        }
-        if (configData.description) {
-          node.querySelector('.ai-node-content').innerHTML = 
-            `<div class="node-description">${configData.description}</div>`;
-        }
-    }
-    
-    // Salva la configurazione
-    saveAINodeState(node.id, configData);
-    
-    // Chiudi il pannello
-    configPanel.remove();
-  });
-  
-  cancelBtn.addEventListener('click', function() {
-    // Chiudi semplicemente il pannello senza salvare
-    configPanel.remove();
-  });
-}
-
-// Funzione per eliminare un nodo AI
-function deleteAINode(nodeId) {
-  // Trova il nodo nel DOM
-  const node = document.getElementById(nodeId);
-  if (!node) return;
-  
-  // Rimuovi eventuali connessioni collegate a questo nodo
-  // Qui dovremmo implementare la logica per rimuovere le connessioni
-  
-  // Rimuovi il nodo dal DOM
-  node.remove();
-  
-  // Rimuovi lo stato salvato
-  localStorage.removeItem(`ai_node_${nodeId}`);
-  
-  // Aggiorna la minimappa
-  if (typeof updateMinimap === 'function') {
-    updateMinimap();
-  }
-  
-  console.log(`[LOG] Nodo AI eliminato: ${nodeId}`);
-}
-
-// Aggiungi stili CSS per migliorare il panning e lo zoom
-// ... existing code ...
 
 // Aggiungi stili CSS per migliorare il panning e lo zoom
 const workflowStyles = document.createElement('style');
@@ -862,7 +422,6 @@ function initializeWorkflow() {
         <button class="toolbar-btn pencil-tool-btn" title="Matita"><i class="fas fa-pencil-alt"></i></button>
         <button class="toolbar-btn" title="Testo"><i class="fas fa-font"></i></button>
         <button class="toolbar-btn" title="Forma"><i class="fas fa-shapes"></i></button>
-        <button class="toolbar-btn ai-nodes-btn" title="Nodi AI"><i class="fas fa-brain"></i></button>
         <div class="toolbar-separator"></div>
         <button class="toolbar-btn zoom-in-btn" title="Zoom In"><i class="fas fa-search-plus"></i></button>
         <button class="toolbar-btn zoom-out-btn" title="Zoom Out"><i class="fas fa-search-minus"></i></button>
@@ -913,7 +472,35 @@ function initializeWorkflow() {
     drawingCanvas.style.zIndex = '5'; // Sotto le note (10) e connessioni (15)
     drawingCanvas.style.pointerEvents = 'none'; // Inizialmente non interattivo
     workspaceContent.appendChild(drawingCanvas); // Aggiungilo a workspaceContent
-    drawingCtx = drawingCanvas.getContext('2d');
+    // drawingCtx = drawingCanvas.getContext('2d'); // RIMOSSO: Konva gestirà il canvas
+
+    // AGGIUNTO: Inizializzazione di Konva Stage e Layer
+    konvaStage = new Konva.Stage({
+      container: drawingCanvas, // Usa l'elemento canvas esistente
+      width: drawingCanvas.width,
+      height: drawingCanvas.height,
+    });
+
+    konvaLayer = new Konva.Layer();
+    konvaStage.add(konvaLayer);
+
+    // AGGIUNTO: Event listener per il disegno direttamente sul drawingCanvas
+    // Questi sostituiranno la necessità di chiamare esplicitamente handleDrawingStart, ecc.
+    // da altri punti, sebbene le funzioni stesse verranno modificate per usare Konva.
+    // Ci assicuriamo che questi listener siano attivati solo quando la matita è attiva.
+
+    drawingCanvas.addEventListener('mousedown', (e) => {
+      if (isPencilActive) handleDrawingStart(e);
+    });
+    drawingCanvas.addEventListener('mousemove', (e) => {
+      if (isPencilActive && isDrawing) handleDrawingMove(e);
+    });
+    drawingCanvas.addEventListener('mouseup', (e) => {
+      if (isPencilActive && isDrawing) handleDrawingEnd(e);
+    });
+    drawingCanvas.addEventListener('mouseleave', (e) => {
+      if (isPencilActive && isDrawing) handleDrawingEnd(e); // Gestisce anche mouseleave
+    });
     
     // Aggiungere un indicatore di posizione nel canvas
     const positionIndicator = document.createElement('div');
@@ -1008,10 +595,6 @@ function initializeWorkflow() {
           if (generalExpandableOptions) {
             generalExpandableOptions.classList.remove('visible');
           }
-          const aiNodesToolbar = workflowToolbar.querySelector('.ai-nodes-toolbar');
-          if (aiNodesToolbar) {
-            aiNodesToolbar.classList.remove('visible');
-          }
         } else {
           pencilToolBtn.classList.remove('active');
           pencilOptionsToolbar.classList.remove('visible');
@@ -1039,6 +622,8 @@ function initializeWorkflow() {
           colorButtons.forEach(btn => btn.classList.remove('active'));
           // Aggiungi la classe 'active' al pulsante cliccato
           button.classList.add('active');
+          currentDrawingColor = button.dataset.color; // IMPOSTA currentDrawingColor
+          console.log('Colore matita cambiato in:', currentDrawingColor);
         });
       });
 
@@ -1205,145 +790,6 @@ function initializeWorkflow() {
     } else {
       console.error('initializeWorkflow: mainWorkspaceArea non trovato. Le etichette delle connessioni potrebbero non funzionare correttamente.');
     }
-
-    // Gestione della toolbar dei nodi AI
-    const aiNodesBtn = workflowToolbar.querySelector('.ai-nodes-btn');
-    
-    // Verifica se esiste già una toolbar per i nodi AI, altrimenti creala
-    let aiNodesToolbar = workflowToolbar.querySelector('.ai-nodes-toolbar');
-    if (!aiNodesToolbar) {
-      aiNodesToolbar = document.createElement('div');
-      aiNodesToolbar.className = 'ai-nodes-toolbar';
-      aiNodesToolbar.innerHTML = `
-        <div class="ai-node-category">
-          <div class="ai-category-title">Input</div>
-          <div class="ai-nodes-container">
-            <button class="ai-node-btn" data-node-type="text-input"><i class="fas fa-font"></i> Input Testo</button>
-            <button class="ai-node-btn" data-node-type="data-input"><i class="fas fa-database"></i> Dati</button>
-            <button class="ai-node-btn" data-node-type="file-input"><i class="fas fa-file"></i> File</button>
-          </div>
-        </div>
-        <div class="ai-node-category">
-          <div class="ai-category-title">Elaborazione</div>
-          <div class="ai-nodes-container">
-            <button class="ai-node-btn" data-node-type="text-processor"><i class="fas fa-cogs"></i> Elaborazione Testo</button>
-            <button class="ai-node-btn" data-node-type="filter"><i class="fas fa-filter"></i> Filtro</button>
-            <button class="ai-node-btn" data-node-type="transformer"><i class="fas fa-random"></i> Transformer</button>
-          </div>
-        </div>
-        <div class="ai-node-category">
-          <div class="ai-category-title">AI</div>
-          <div class="ai-nodes-container">
-            <button class="ai-node-btn" data-node-type="text-generator"><i class="fas fa-robot"></i> Genera Testo</button>
-            <button class="ai-node-btn" data-node-type="classifier"><i class="fas fa-tags"></i> Classificatore</button>
-            <button class="ai-node-btn" data-node-type="sentiment"><i class="fas fa-smile"></i> Analisi Sentiment</button>
-          </div>
-        </div>
-        <div class="ai-node-category">
-          <div class="ai-category-title">Output</div>
-          <div class="ai-nodes-container">
-            <button class="ai-node-btn" data-node-type="text-output"><i class="fas fa-file-alt"></i> Output Testo</button>
-            <button class="ai-node-btn" data-node-type="visualization"><i class="fas fa-chart-bar"></i> Visualizzazione</button>
-            <button class="ai-node-btn" data-node-type="notification"><i class="fas fa-bell"></i> Notifica</button>
-          </div>
-        </div>
-      `;
-      workflowToolbar.appendChild(aiNodesToolbar);
-      
-      // Impedire che i click all'interno della ai-nodes-toolbar la chiudano
-      aiNodesToolbar.addEventListener('click', (event) => {
-        event.stopPropagation();
-      });
-      
-      // Gestisci il click sui pulsanti dei nodi
-      const nodeButtons = aiNodesToolbar.querySelectorAll('.ai-node-btn');
-      nodeButtons.forEach(button => {
-        button.addEventListener('click', (event) => {
-          const nodeType = button.dataset.nodeType;
-          console.log(`Creazione nodo AI di tipo: ${nodeType}`);
-          
-          // Se esiste una funzione per creare nodi AI, chiamala
-          if (typeof window.createAINode === 'function') {
-            // Calcola la posizione centrata rispetto al viewport corrente
-            // Il problema è che canvasOffsetX/Y sono valori negativi, quindi dobbiamo convertire correttamente
-            // Trasformiamo le coordinate del viewport in coordinate del canvas
-            
-            // Prima otteniamo il centro del viewport
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            const viewportCenterX = viewportWidth / 2;
-            const viewportCenterY = viewportHeight / 2;
-            
-            // Poi convertiamo in coordinate del canvas considerando offset e scale
-            const canvasCenterX = viewportCenterX / canvasScale - canvasOffsetX / canvasScale;
-            const canvasCenterY = viewportCenterY / canvasScale - canvasOffsetY / canvasScale;
-            
-            console.log(`Posizione centro viewport: (${viewportCenterX}, ${viewportCenterY})`);
-            console.log(`Posizione nel canvas: (${canvasCenterX}, ${canvasCenterY})`);
-            console.log(`Canvas offset: (${canvasOffsetX}, ${canvasOffsetY}), Scale: ${canvasScale}`);
-            
-            // Crea il nodo in posizione visibile
-            window.createAINode(nodeType, canvasCenterX, canvasCenterY);
-          } else {
-            console.warn('Funzione createAINode non trovata');
-          }
-        });
-      });
-    }
-    
-    // Aggiungi l'event listener al pulsante dei nodi AI
-    if (aiNodesBtn) {
-      let isAINodesActive = false;
-      
-      aiNodesBtn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        isAINodesActive = !isAINodesActive;
-        
-        if (isAINodesActive) {
-          aiNodesBtn.classList.add('active');
-          aiNodesToolbar.classList.add('visible');
-          
-          // Nascondi altre toolbar se aperte
-          const expandableOptions = workflowToolbar.querySelector('.toolbar-expandable-options');
-          if (expandableOptions) {
-            expandableOptions.classList.remove('visible');
-          }
-          
-          if (pencilOptionsToolbar) {
-            pencilOptionsToolbar.classList.remove('visible');
-            pencilToolBtn.classList.remove('active');
-            isPencilActive = false;
-            drawingCanvas.style.pointerEvents = 'none';
-            isDrawing = false;
-          }
-        } else {
-          aiNodesBtn.classList.remove('active');
-          aiNodesToolbar.classList.remove('visible');
-        }
-      });
-    }
-    
-    // Chiudi tutte le toolbar quando si clicca al di fuori
-    document.addEventListener('click', function() {
-      const expandableOptions = workflowToolbar.querySelector('.toolbar-expandable-options');
-      if (expandableOptions) {
-        expandableOptions.classList.remove('visible');
-      }
-      
-      if (pencilOptionsToolbar) {
-        pencilOptionsToolbar.classList.remove('visible');
-        pencilToolBtn.classList.remove('active');
-        isPencilActive = false;
-        drawingCanvas.style.pointerEvents = 'none';
-        isDrawing = false;
-      }
-      
-      if (aiNodesToolbar) {
-        aiNodesToolbar.classList.remove('visible');
-        aiNodesBtn.classList.remove('active');
-        isAINodesActive = false;
-      }
-    });
   }
 }
 
@@ -1802,7 +1248,7 @@ function handleNoteContentEdit(e) {
     }
   } else {
     // In modalità canvas, salva lo stato della nota
-    const note = block.closest('.workspace-note');
+    const note = blockContent.closest('.workspace-note');
     if (note) {
       // Delay save to avoid too many operations
       if (note.saveTimeout) {
@@ -2664,7 +2110,7 @@ function updateConnectionPathStart() {
   // Ottieni la posizione del port rispetto al documento
   const portRect = connectionStartPort.getBoundingClientRect();
   
-  // Ottieni il workspace
+  // Ottieni la posizione del workspace
   const workspace = document.getElementById('workflowWorkspace');
   if (!workspace) {
     console.error('updateConnectionPathStart: workspace non trovato');
@@ -6814,3 +6260,79 @@ function handleDrawingEnd(e) {
   e.stopPropagation();
   e.preventDefault(); // AGGIUNTO
 }
+
+// AGGIUNTO: Funzione per ottenere le coordinate del mouse sul drawingCanvas (spazio 10k x 10k)
+function getMousePosOnDrawingCanvas(e) {
+  const workspaceArea = document.getElementById('workflowWorkspace'); // L'elemento di riferimento per BoundingClientRect
+  if (!workspaceArea) {
+    console.error('getMousePosOnDrawingCanvas: workflowWorkspace non trovato.');
+    return { x: 0, y: 0 };
+  }
+  const rect = workspaceArea.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left; // Posizione X relativa alla viewport del workspaceArea
+  const mouseY = e.clientY - rect.top; // Posizione Y relativa alla viewport del workspaceArea
+
+  // Converte le coordinate della viewport in coordinate del canvas (10k x 10k)
+  // tenendo conto dello zoom (canvasScale) e del pan (canvasOffsetX/Y) del workspaceContent
+  const canvasX = (mouseX - canvasOffsetX) / canvasScale;
+  const canvasY = (mouseY - canvasOffsetY) / canvasScale;
+
+  return { x: canvasX, y: canvasY };
+}
+
+function handleDrawingStart(e) {
+  if (!isPencilActive || e.button !== 0) return;
+  isDrawing = true;
+  const coords = getMousePosOnDrawingCanvas(e);
+  console.log('[KONVA_DRW_START]: Mouse down. Coords:', coords, 'Color:', currentDrawingColor, 'Stroke:', currentDrawingStrokeWidth);
+
+  currentKonvaLine = new Konva.Line({
+    points: [coords.x, coords.y, coords.x, coords.y], // Inizia e finisce nello stesso punto per un click
+    stroke: currentDrawingColor,
+    strokeWidth: currentDrawingStrokeWidth,
+    lineCap: 'round',
+    lineJoin: 'round',
+    tension: 0.1, // Leggera tensione per linee più fluide
+    globalCompositeOperation: 'source-over' // Modalità di disegno normale
+  });
+  konvaLayer.add(currentKonvaLine);
+
+  e.stopPropagation();
+  e.preventDefault();
+}
+
+function handleDrawingMove(e) {
+  if (!isDrawing || !isPencilActive || !currentKonvaLine) return;
+  const coords = getMousePosOnDrawingCanvas(e);
+  // console.log('[KONVA_DRW_MOVE]: Drawing to', coords); // Log troppo verboso
+
+  const newPoints = currentKonvaLine.points().concat([coords.x, coords.y]);
+  currentKonvaLine.points(newPoints);
+  // Konva gestisce il ridisegno in modo efficiente. konvaLayer.batchDraw() può essere usato
+  // se si notano problemi di performance o rendering, ma di solito non è necessario per linee semplici.
+  // konvaLayer.batchDraw(); // In caso di necessità
+
+  e.stopPropagation();
+  e.preventDefault();
+}
+
+function handleDrawingEnd(e) {
+  if (!isDrawing || !isPencilActive) return; // Verifica aggiuntiva
+  console.log('[KONVA_DRW_END]: Mouse up/leave.');
+  isDrawing = false;
+  currentKonvaLine = null; // Resetta la linea corrente
+  
+  e.stopPropagation();
+  e.preventDefault();
+}
+
+// Alla fine del file, dopo tutte le funzioni, aggiungo questa sezione per esporre le funzioni globalmente:
+// Esposizione delle funzioni principali al contesto globale (window)
+window.initializeWorkflow = initializeWorkflow;
+window.cleanupWorkflow = cleanupWorkflow;
+window.createNewNote = createNewNote;
+window.updateAllConnections = updateAllConnections;
+window.saveWorkflowState = saveWorkflowState;
+window.populateWorkflowSidebar = populateWorkflowSidebar;
+window.handleCreateKanbanBoard = handleCreateKanbanBoard;
+// Altre funzioni globali necessarie...

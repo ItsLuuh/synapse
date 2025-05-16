@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const Store = require('electron-store');
 const { createApiService } = require('../services/api-services');
 const googleAuthService = require('../services/google-auth-service');
@@ -217,8 +218,94 @@ ipcMain.on('get-settings', (event, key) => {
   event.returnValue = store.get(`settings.${key}`);
 });
 
-// NSN service handlers are already defined above
-// No need to register them twice
+// NUOVO: Gestore per assicurare/creare la cartella Synapse Workflows
+ipcMain.handle('ensure-synapse-workflows-dir', async () => {
+  const documentsPath = app.getPath('documents');
+  const synapseWorkflowsPath = path.join(documentsPath, 'Synapse Workflows');
+
+  try {
+    if (!fs.existsSync(synapseWorkflowsPath)) {
+      fs.mkdirSync(synapseWorkflowsPath, { recursive: true });
+      console.log(`Main.js: Created directory 'Synapse Workflows' at ${synapseWorkflowsPath}`);
+    }
+    return synapseWorkflowsPath;
+  } catch (error) {
+    console.error(`Main.js: Error ensuring 'Synapse Workflows' directory: ${error}`);
+    return null; // O gestire l'errore come preferito
+  }
+});
+
+// NUOVO: Gestore per elencare i file .syn nella cartella Synapse Workflows
+ipcMain.handle('list-syn-files', async () => {
+  const documentsPath = app.getPath('documents');
+  const synapseWorkflowsPath = path.join(documentsPath, 'Synapse Workflows');
+
+  try {
+    // Assicurati prima che la cartella esista (potrebbe essere la prima esecuzione)
+    if (!fs.existsSync(synapseWorkflowsPath)) {
+      fs.mkdirSync(synapseWorkflowsPath, { recursive: true });
+      console.log(`Main.js: Created directory 'Synapse Workflows' at ${synapseWorkflowsPath} before listing files.`);
+      return []; // Nessun file da elencare se la cartella è appena stata creata
+    }
+
+    const files = fs.readdirSync(synapseWorkflowsPath);
+    const synFiles = files.filter(file => path.extname(file).toLowerCase() === '.syn');
+    console.log('Main.js: Found .syn files:', synFiles);
+    return synFiles;
+  } catch (error) {
+    console.error(`Main.js: Error listing .syn files: ${error}`);
+    return []; // Restituisce un array vuoto in caso di errore
+  }
+});
+
+// NUOVO: Gestore per salvare un file .syn nella cartella Synapse Workflows
+ipcMain.handle('save-workflow-file', async (event, { fileName, content }) => {
+  const documentsPath = app.getPath('documents');
+  const synapseWorkflowsPath = path.join(documentsPath, 'Synapse Workflows');
+  
+  const finalFileName = fileName.endsWith('.syn') ? fileName : `${fileName}.syn`;
+  const filePath = path.join(synapseWorkflowsPath, finalFileName);
+
+  try {
+    if (!fs.existsSync(synapseWorkflowsPath)) {
+      fs.mkdirSync(synapseWorkflowsPath, { recursive: true });
+      console.log(`Main.js: Created directory 'Synapse Workflows' at ${synapseWorkflowsPath} before saving file.`);
+    }
+
+    const buffer = Buffer.from(content);
+    fs.writeFileSync(filePath, buffer);
+    console.log(`Main.js: Workflow file (ProtoBuf) saved to ${filePath}`);
+    return { success: true, filePath: filePath };
+  } catch (error) {
+    console.error(`Main.js: Error saving workflow file (ProtoBuf) to ${filePath}:`, error);
+    return { success: false, error: error.message };
+  }
+});
+
+// NUOVO: Gestore per caricare un file .syn dalla cartella Synapse Workflows
+ipcMain.handle('load-workflow-file', async (event, fileName) => {
+  const documentsPath = app.getPath('documents');
+  const synapseWorkflowsPath = path.join(documentsPath, 'Synapse Workflows');
+  const filePath = path.join(synapseWorkflowsPath, fileName); // Assumiamo che fileName includa .syn
+
+  try {
+    if (!fs.existsSync(filePath)) {
+      console.error(`Main.js: File not found for loading: ${filePath}`);
+      return { success: false, error: 'File not found' };
+    }
+
+    const buffer = fs.readFileSync(filePath);
+    // Converti il Buffer in un array di numeri per il passaggio IPC, 
+    // dato che il renderer potrebbe avere difficoltà con i Buffer diretti via invoke.
+    const dataArray = Array.from(buffer);
+    console.log(`Main.js: Workflow file (ProtoBuf) loaded from ${filePath}, size: ${buffer.length} bytes.`);
+    return { success: true, data: dataArray };
+
+  } catch (error) {
+    console.error(`Main.js: Error loading workflow file (ProtoBuf) from ${filePath}:`, error);
+    return { success: false, error: error.message };
+  }
+});
 
 // Handle API requests
 ipcMain.handle('generate-ai-response', async (event, { prompt }) => {

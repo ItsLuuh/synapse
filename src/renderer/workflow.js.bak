@@ -82,6 +82,9 @@ let currentDrawingStrokeWidth = 2; // Default a 2
 const minStrokeWidth = 1;
 const maxStrokeWidth = 50;
 
+// Variabile per il colore corrente del disegno
+let currentDrawingColor = '#000000'; // Default nero
+
 // Variabili per il disegno
 let isPencilActive = false;
 let isDrawing = false;
@@ -188,455 +191,6 @@ window.workflowFunctions = window.workflowFunctions || {};
 window.workflowFunctions.initialize = function() {
   initializeWorkflow();
 };
-
-// Funzione per creare nodi AI nel workspace
-window.createAINode = function(nodeType, x, y) {
-  console.log(`[LOG] Creazione nodo AI di tipo: ${nodeType} in posizione (${x}, ${y})`);
-  
-  // Ottieni il workspace
-  const workspaceArea = document.getElementById('workflowWorkspace');
-  if (!workspaceArea) {
-    console.error('Workspace non trovato');
-    return null;
-  }
-  
-  // Genera un ID univoco per il nodo
-  const nodeId = `ai-node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  
-  // Crea il nuovo elemento nodo
-  const node = document.createElement('div');
-  node.id = nodeId;
-  node.className = 'workspace-ai-node';
-  node.dataset.nodeType = nodeType;
-  
-  // Configura l'aspetto e il contenuto del nodo in base al tipo
-  let nodeTitle = '';
-  let nodeIcon = '';
-  let nodeColor = '#5c5cff'; // Colore default
-  
-  switch(nodeType) {
-    case 'text-input':
-      nodeTitle = 'Input Testo';
-      nodeIcon = 'fas fa-font';
-      break;
-    case 'data-input':
-      nodeTitle = 'Input Dati';
-      nodeIcon = 'fas fa-database';
-      break;
-    case 'file-input':
-      nodeTitle = 'Input File';
-      nodeIcon = 'fas fa-file';
-      break;
-    case 'text-processor':
-      nodeTitle = 'Elaborazione Testo';
-      nodeIcon = 'fas fa-cogs';
-      nodeColor = '#5c9fff';
-      break;
-    case 'filter':
-      nodeTitle = 'Filtro';
-      nodeIcon = 'fas fa-filter';
-      nodeColor = '#5c9fff';
-      break;
-    case 'transformer':
-      nodeTitle = 'Transformer';
-      nodeIcon = 'fas fa-random';
-      nodeColor = '#5c9fff';
-      break;
-    case 'text-generator':
-      nodeTitle = 'Genera Testo';
-      nodeIcon = 'fas fa-robot';
-      nodeColor = '#ff5c5c';
-      break;
-    case 'classifier':
-      nodeTitle = 'Classificatore';
-      nodeIcon = 'fas fa-tags';
-      nodeColor = '#ff5c5c';
-      break;
-    case 'sentiment':
-      nodeTitle = 'Analisi Sentiment';
-      nodeIcon = 'fas fa-smile';
-      nodeColor = '#ff5c5c';
-      break;
-    case 'text-output':
-      nodeTitle = 'Output Testo';
-      nodeIcon = 'fas fa-file-alt';
-      nodeColor = '#5cff5c';
-      break;
-    case 'visualization':
-      nodeTitle = 'Visualizzazione';
-      nodeIcon = 'fas fa-chart-bar';
-      nodeColor = '#5cff5c';
-      break;
-    case 'notification':
-      nodeTitle = 'Notifica';
-      nodeIcon = 'fas fa-bell';
-      nodeColor = '#5cff5c';
-      break;
-    default:
-      nodeTitle = 'Nodo Generico';
-      nodeIcon = 'fas fa-question';
-  }
-  
-  // Struttura HTML del nodo
-  node.innerHTML = `
-    <div class="ai-node-header" style="background-color: ${nodeColor};">
-      <span><i class="${nodeIcon}"></i> ${nodeTitle}</span>
-      <div class="node-actions">
-        <button class="node-action" title="Configura"><i class="fas fa-cog"></i></button>
-        <button class="node-action" title="Elimina"><i class="fas fa-times"></i></button>
-      </div>
-    </div>
-    <div class="ai-node-content">
-      <div class="node-description">Configura questo nodo per iniziare</div>
-    </div>
-    <div class="node-state" data-state="idle">
-      <div class="node-state-indicator"></div>
-    </div>
-    <div class="node-connector-port input" title="Input"></div>
-    <div class="node-connector-port output" title="Output"></div>
-  `;
-  
-  // Posiziona il nodo alle coordinate specificate
-  node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-  
-  // Aggiungi il nodo al workspace
-  workspaceArea.appendChild(node);
-  
-  // Configura eventi per il trascinamento
-  setupAINodeEventHandlers(node);
-  
-  // Salva lo stato iniziale del nodo
-  saveAINodeState(nodeId, {
-    id: nodeId,
-    type: nodeType,
-    position: { x, y },
-    title: nodeTitle,
-    icon: nodeIcon,
-    color: nodeColor,
-    state: 'idle'
-  });
-  
-  // Aggiorna la minimappa
-  if (typeof updateMinimap === 'function') {
-    updateMinimap();
-  }
-  
-  console.log(`[LOG] Nodo AI creato con ID: ${nodeId}`);
-  return node;
-};
-
-// Funzione per configurare gli eventi del nodo AI
-function setupAINodeEventHandlers(node) {
-  if (!node) return;
-  
-  let isDragging = false;
-  let dragOffsetX = 0;
-  let dragOffsetY = 0;
-  
-  // Gestione del trascinamento dell'header del nodo
-  const nodeHeader = node.querySelector('.ai-node-header');
-  if (nodeHeader) {
-    nodeHeader.addEventListener('mousedown', function(e) {
-      if (e.target.closest('.node-action')) return; // Ignora se si clicca su un'azione
-      
-      isDragging = true;
-      node.classList.add('dragging');
-      
-      // Calcola l'offset del mouse rispetto all'angolo superiore sinistro del nodo
-      const rect = node.getBoundingClientRect();
-      dragOffsetX = e.clientX - rect.left;
-      dragOffsetY = e.clientY - rect.top;
-      
-      // Aggiungi event listeners temporanei per il trascinamento
-      document.addEventListener('mousemove', handleNodeDragMove);
-      document.addEventListener('mouseup', handleNodeDragEnd);
-      
-      e.preventDefault();
-    });
-  }
-  
-  // Funzione di trascinamento del nodo
-  function handleNodeDragMove(e) {
-    if (!isDragging) return;
-    
-    // Calcola la nuova posizione considerando lo scale del canvas
-    const scale = canvasScale;
-    const x = (e.clientX - dragOffsetX) / scale + canvasOffsetX / scale;
-    const y = (e.clientY - dragOffsetY) / scale + canvasOffsetY / scale;
-    
-    // Aggiorna la posizione del nodo
-    node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-    
-    // Aggiorna le connessioni se ce ne sono
-    if (typeof scheduleConnectionsUpdate === 'function') {
-      scheduleConnectionsUpdate();
-    }
-    
-    e.preventDefault();
-  }
-  
-  // Funzione di rilascio del nodo
-  function handleNodeDragEnd(e) {
-    if (!isDragging) return;
-    
-    isDragging = false;
-    node.classList.remove('dragging');
-    
-    // Calcola la posizione finale
-    const scale = canvasScale;
-    const x = (e.clientX - dragOffsetX) / scale + canvasOffsetX / scale;
-    const y = (e.clientY - dragOffsetY) / scale + canvasOffsetY / scale;
-    
-    // Aggiorna lo stato salvato del nodo
-    saveAINodeState(node.id, {
-      position: { x, y }
-    });
-    
-    // Aggiorna la minimappa
-    if (typeof updateMinimap === 'function') {
-      updateMinimap();
-    }
-    
-    // Rimuovi gli event listeners temporanei
-    document.removeEventListener('mousemove', handleNodeDragMove);
-    document.removeEventListener('mouseup', handleNodeDragEnd);
-    
-    e.preventDefault();
-  }
-  
-  // Gestione delle azioni del nodo (configurazione, eliminazione)
-  const nodeActions = node.querySelectorAll('.node-action');
-  nodeActions.forEach(action => {
-    action.addEventListener('click', function(e) {
-      const isConfigAction = action.title === 'Configura';
-      const isDeleteAction = action.title === 'Elimina';
-      
-      if (isConfigAction) {
-        // Apri il pannello di configurazione
-        showNodeConfigPanel(node);
-      } else if (isDeleteAction) {
-        // Elimina il nodo
-        deleteAINode(node.id);
-      }
-      
-      e.stopPropagation();
-    });
-  });
-  
-  // Aggiungi gestione delle porte di connessione
-  setupAINodeConnectionPorts(node);
-}
-
-// Gestione delle porte di connessione per i nodi AI
-function setupAINodeConnectionPorts(node) {
-  const ports = node.querySelectorAll('.node-connector-port');
-  
-  ports.forEach(port => {
-    port.addEventListener('mousedown', function(e) {
-      // Implementa la logica per iniziare una connessione
-      console.log(`Inizio connessione dalla porta ${port.classList.contains('input') ? 'input' : 'output'} del nodo ${node.id}`);
-      // Qui dovremmo implementare la logica per creare connessioni tra nodi
-      
-      e.stopPropagation();
-    });
-    
-    // Evidenzia la porta quando il mouse ci passa sopra
-    port.addEventListener('mouseenter', function() {
-      port.classList.add('highlight');
-    });
-    
-    port.addEventListener('mouseleave', function() {
-      port.classList.remove('highlight');
-    });
-  });
-}
-
-// Funzione per salvare lo stato di un nodo AI
-function saveAINodeState(nodeId, updates) {
-  // Ottieni lo stato corrente dal localStorage o crea un nuovo oggetto
-  let nodeState;
-  try {
-    const savedState = localStorage.getItem(`ai_node_${nodeId}`);
-    nodeState = savedState ? JSON.parse(savedState) : {};
-  } catch (e) {
-    console.error(`Errore nel recuperare lo stato del nodo ${nodeId}:`, e);
-    nodeState = {};
-  }
-  
-  // Aggiorna lo stato con i nuovi valori
-  Object.assign(nodeState, updates);
-  
-  // Salva nel localStorage
-  try {
-    localStorage.setItem(`ai_node_${nodeId}`, JSON.stringify(nodeState));
-  } catch (e) {
-    console.error(`Errore nel salvare lo stato del nodo ${nodeId}:`, e);
-  }
-}
-
-// Funzione per mostrare il pannello di configurazione di un nodo
-function showNodeConfigPanel(node) {
-  // Controlla se esiste già un pannello aperto e rimuovilo
-  const existingPanel = document.querySelector('.node-config-panel');
-  if (existingPanel) {
-    existingPanel.remove();
-  }
-  
-  // Crea un nuovo pannello di configurazione
-  const configPanel = document.createElement('div');
-  configPanel.className = 'node-config-panel';
-  
-  // Ottieni il tipo di nodo
-  const nodeType = node.dataset.nodeType;
-  const nodeTitle = node.querySelector('.ai-node-header span').textContent.trim();
-  
-  // Ottieni lo stato salvato del nodo
-  let nodeState;
-  try {
-    const savedState = localStorage.getItem(`ai_node_${node.id}`);
-    nodeState = savedState ? JSON.parse(savedState) : {};
-  } catch (e) {
-    console.error(`Errore nel recuperare lo stato del nodo ${node.id}:`, e);
-    nodeState = {};
-  }
-  
-  // Genera campi di configurazione specifici per il tipo di nodo
-  let configFields = '';
-  
-  switch(nodeType) {
-    case 'text-input':
-      configFields = `
-        <div class="config-field">
-          <label for="input-text">Testo di input:</label>
-          <textarea id="input-text" class="config-textarea">${nodeState.inputText || ''}</textarea>
-        </div>
-      `;
-      break;
-    case 'text-processor':
-      configFields = `
-        <div class="config-field">
-          <label for="processor-type">Tipo di elaborazione:</label>
-          <select id="processor-type" class="config-select">
-            <option value="transform" ${nodeState.processorType === 'transform' ? 'selected' : ''}>Trasformazione</option>
-            <option value="extract" ${nodeState.processorType === 'extract' ? 'selected' : ''}>Estrazione</option>
-            <option value="summarize" ${nodeState.processorType === 'summarize' ? 'selected' : ''}>Riassunto</option>
-          </select>
-        </div>
-        <div class="config-field">
-          <label for="processor-params">Parametri:</label>
-          <textarea id="processor-params" class="config-textarea">${nodeState.processorParams || ''}</textarea>
-        </div>
-      `;
-      break;
-    // Aggiungi altri casi specifici per ogni tipo di nodo
-    default:
-      configFields = `
-        <div class="config-field">
-          <label for="node-name">Nome del nodo:</label>
-          <input type="text" id="node-name" class="config-input" value="${nodeState.name || nodeTitle}">
-        </div>
-        <div class="config-field">
-          <label for="node-description">Descrizione:</label>
-          <textarea id="node-description" class="config-textarea">${nodeState.description || ''}</textarea>
-        </div>
-      `;
-  }
-  
-  // Crea il contenuto HTML del pannello
-  configPanel.innerHTML = `
-    <h3>Configura ${nodeTitle}</h3>
-    ${configFields}
-    <div class="config-actions">
-      <button class="config-btn config-save">Salva</button>
-      <button class="config-btn config-cancel">Annulla</button>
-    </div>
-  `;
-  
-  // Posiziona il pannello vicino al nodo
-  const rect = node.getBoundingClientRect();
-  configPanel.style.top = `${rect.top}px`;
-  configPanel.style.left = `${rect.right + 10}px`;
-  
-  // Aggiungi il pannello al DOM
-  document.body.appendChild(configPanel);
-  
-  // Gestione degli eventi per i pulsanti del pannello
-  const saveBtn = configPanel.querySelector('.config-save');
-  const cancelBtn = configPanel.querySelector('.config-cancel');
-  
-  saveBtn.addEventListener('click', function() {
-    // Raccogli i valori dai campi di configurazione
-    const configData = {};
-    
-    // Aggiungi logica specifica per ogni tipo di nodo
-    switch(nodeType) {
-      case 'text-input':
-        const inputText = configPanel.querySelector('#input-text').value;
-        configData.inputText = inputText;
-        // Aggiorna anche il contenuto visibile del nodo
-        node.querySelector('.ai-node-content').innerHTML = inputText.length > 30 ? 
-          `<div class="node-description">${inputText.substring(0, 30)}...</div>` : 
-          `<div class="node-description">${inputText}</div>`;
-        break;
-      case 'text-processor':
-        configData.processorType = configPanel.querySelector('#processor-type').value;
-        configData.processorParams = configPanel.querySelector('#processor-params').value;
-        // Aggiorna il contenuto visibile
-        node.querySelector('.ai-node-content').innerHTML = 
-          `<div class="node-description">Tipo: ${configData.processorType}</div>`;
-        break;
-      default:
-        // Campi generici
-        configData.name = configPanel.querySelector('#node-name').value;
-        configData.description = configPanel.querySelector('#node-description').value;
-        // Aggiorna il titolo e la descrizione del nodo
-        if (configData.name) {
-          node.querySelector('.ai-node-header span').textContent = configData.name;
-        }
-        if (configData.description) {
-          node.querySelector('.ai-node-content').innerHTML = 
-            `<div class="node-description">${configData.description}</div>`;
-        }
-    }
-    
-    // Salva la configurazione
-    saveAINodeState(node.id, configData);
-    
-    // Chiudi il pannello
-    configPanel.remove();
-  });
-  
-  cancelBtn.addEventListener('click', function() {
-    // Chiudi semplicemente il pannello senza salvare
-    configPanel.remove();
-  });
-}
-
-// Funzione per eliminare un nodo AI
-function deleteAINode(nodeId) {
-  // Trova il nodo nel DOM
-  const node = document.getElementById(nodeId);
-  if (!node) return;
-  
-  // Rimuovi eventuali connessioni collegate a questo nodo
-  // Qui dovremmo implementare la logica per rimuovere le connessioni
-  
-  // Rimuovi il nodo dal DOM
-  node.remove();
-  
-  // Rimuovi lo stato salvato
-  localStorage.removeItem(`ai_node_${nodeId}`);
-  
-  // Aggiorna la minimappa
-  if (typeof updateMinimap === 'function') {
-    updateMinimap();
-  }
-  
-  console.log(`[LOG] Nodo AI eliminato: ${nodeId}`);
-}
-
-// Aggiungi stili CSS per migliorare il panning e lo zoom
-// ... existing code ...
 
 // Aggiungi stili CSS per migliorare il panning e lo zoom
 const workflowStyles = document.createElement('style');
@@ -862,7 +416,6 @@ function initializeWorkflow() {
         <button class="toolbar-btn pencil-tool-btn" title="Matita"><i class="fas fa-pencil-alt"></i></button>
         <button class="toolbar-btn" title="Testo"><i class="fas fa-font"></i></button>
         <button class="toolbar-btn" title="Forma"><i class="fas fa-shapes"></i></button>
-        <button class="toolbar-btn ai-nodes-btn" title="Nodi AI"><i class="fas fa-brain"></i></button>
         <div class="toolbar-separator"></div>
         <button class="toolbar-btn zoom-in-btn" title="Zoom In"><i class="fas fa-search-plus"></i></button>
         <button class="toolbar-btn zoom-out-btn" title="Zoom Out"><i class="fas fa-search-minus"></i></button>
@@ -1007,10 +560,6 @@ function initializeWorkflow() {
           const generalExpandableOptions = workflowToolbar.querySelector('.toolbar-expandable-options');
           if (generalExpandableOptions) {
             generalExpandableOptions.classList.remove('visible');
-          }
-          const aiNodesToolbar = workflowToolbar.querySelector('.ai-nodes-toolbar');
-          if (aiNodesToolbar) {
-            aiNodesToolbar.classList.remove('visible');
           }
         } else {
           pencilToolBtn.classList.remove('active');
@@ -1205,145 +754,6 @@ function initializeWorkflow() {
     } else {
       console.error('initializeWorkflow: mainWorkspaceArea non trovato. Le etichette delle connessioni potrebbero non funzionare correttamente.');
     }
-
-    // Gestione della toolbar dei nodi AI
-    const aiNodesBtn = workflowToolbar.querySelector('.ai-nodes-btn');
-    
-    // Verifica se esiste già una toolbar per i nodi AI, altrimenti creala
-    let aiNodesToolbar = workflowToolbar.querySelector('.ai-nodes-toolbar');
-    if (!aiNodesToolbar) {
-      aiNodesToolbar = document.createElement('div');
-      aiNodesToolbar.className = 'ai-nodes-toolbar';
-      aiNodesToolbar.innerHTML = `
-        <div class="ai-node-category">
-          <div class="ai-category-title">Input</div>
-          <div class="ai-nodes-container">
-            <button class="ai-node-btn" data-node-type="text-input"><i class="fas fa-font"></i> Input Testo</button>
-            <button class="ai-node-btn" data-node-type="data-input"><i class="fas fa-database"></i> Dati</button>
-            <button class="ai-node-btn" data-node-type="file-input"><i class="fas fa-file"></i> File</button>
-          </div>
-        </div>
-        <div class="ai-node-category">
-          <div class="ai-category-title">Elaborazione</div>
-          <div class="ai-nodes-container">
-            <button class="ai-node-btn" data-node-type="text-processor"><i class="fas fa-cogs"></i> Elaborazione Testo</button>
-            <button class="ai-node-btn" data-node-type="filter"><i class="fas fa-filter"></i> Filtro</button>
-            <button class="ai-node-btn" data-node-type="transformer"><i class="fas fa-random"></i> Transformer</button>
-          </div>
-        </div>
-        <div class="ai-node-category">
-          <div class="ai-category-title">AI</div>
-          <div class="ai-nodes-container">
-            <button class="ai-node-btn" data-node-type="text-generator"><i class="fas fa-robot"></i> Genera Testo</button>
-            <button class="ai-node-btn" data-node-type="classifier"><i class="fas fa-tags"></i> Classificatore</button>
-            <button class="ai-node-btn" data-node-type="sentiment"><i class="fas fa-smile"></i> Analisi Sentiment</button>
-          </div>
-        </div>
-        <div class="ai-node-category">
-          <div class="ai-category-title">Output</div>
-          <div class="ai-nodes-container">
-            <button class="ai-node-btn" data-node-type="text-output"><i class="fas fa-file-alt"></i> Output Testo</button>
-            <button class="ai-node-btn" data-node-type="visualization"><i class="fas fa-chart-bar"></i> Visualizzazione</button>
-            <button class="ai-node-btn" data-node-type="notification"><i class="fas fa-bell"></i> Notifica</button>
-          </div>
-        </div>
-      `;
-      workflowToolbar.appendChild(aiNodesToolbar);
-      
-      // Impedire che i click all'interno della ai-nodes-toolbar la chiudano
-      aiNodesToolbar.addEventListener('click', (event) => {
-        event.stopPropagation();
-      });
-      
-      // Gestisci il click sui pulsanti dei nodi
-      const nodeButtons = aiNodesToolbar.querySelectorAll('.ai-node-btn');
-      nodeButtons.forEach(button => {
-        button.addEventListener('click', (event) => {
-          const nodeType = button.dataset.nodeType;
-          console.log(`Creazione nodo AI di tipo: ${nodeType}`);
-          
-          // Se esiste una funzione per creare nodi AI, chiamala
-          if (typeof window.createAINode === 'function') {
-            // Calcola la posizione centrata rispetto al viewport corrente
-            // Il problema è che canvasOffsetX/Y sono valori negativi, quindi dobbiamo convertire correttamente
-            // Trasformiamo le coordinate del viewport in coordinate del canvas
-            
-            // Prima otteniamo il centro del viewport
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            const viewportCenterX = viewportWidth / 2;
-            const viewportCenterY = viewportHeight / 2;
-            
-            // Poi convertiamo in coordinate del canvas considerando offset e scale
-            const canvasCenterX = viewportCenterX / canvasScale - canvasOffsetX / canvasScale;
-            const canvasCenterY = viewportCenterY / canvasScale - canvasOffsetY / canvasScale;
-            
-            console.log(`Posizione centro viewport: (${viewportCenterX}, ${viewportCenterY})`);
-            console.log(`Posizione nel canvas: (${canvasCenterX}, ${canvasCenterY})`);
-            console.log(`Canvas offset: (${canvasOffsetX}, ${canvasOffsetY}), Scale: ${canvasScale}`);
-            
-            // Crea il nodo in posizione visibile
-            window.createAINode(nodeType, canvasCenterX, canvasCenterY);
-          } else {
-            console.warn('Funzione createAINode non trovata');
-          }
-        });
-      });
-    }
-    
-    // Aggiungi l'event listener al pulsante dei nodi AI
-    if (aiNodesBtn) {
-      let isAINodesActive = false;
-      
-      aiNodesBtn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        isAINodesActive = !isAINodesActive;
-        
-        if (isAINodesActive) {
-          aiNodesBtn.classList.add('active');
-          aiNodesToolbar.classList.add('visible');
-          
-          // Nascondi altre toolbar se aperte
-          const expandableOptions = workflowToolbar.querySelector('.toolbar-expandable-options');
-          if (expandableOptions) {
-            expandableOptions.classList.remove('visible');
-          }
-          
-          if (pencilOptionsToolbar) {
-            pencilOptionsToolbar.classList.remove('visible');
-            pencilToolBtn.classList.remove('active');
-            isPencilActive = false;
-            drawingCanvas.style.pointerEvents = 'none';
-            isDrawing = false;
-          }
-        } else {
-          aiNodesBtn.classList.remove('active');
-          aiNodesToolbar.classList.remove('visible');
-        }
-      });
-    }
-    
-    // Chiudi tutte le toolbar quando si clicca al di fuori
-    document.addEventListener('click', function() {
-      const expandableOptions = workflowToolbar.querySelector('.toolbar-expandable-options');
-      if (expandableOptions) {
-        expandableOptions.classList.remove('visible');
-      }
-      
-      if (pencilOptionsToolbar) {
-        pencilOptionsToolbar.classList.remove('visible');
-        pencilToolBtn.classList.remove('active');
-        isPencilActive = false;
-        drawingCanvas.style.pointerEvents = 'none';
-        isDrawing = false;
-      }
-      
-      if (aiNodesToolbar) {
-        aiNodesToolbar.classList.remove('visible');
-        aiNodesBtn.classList.remove('active');
-        isAINodesActive = false;
-      }
-    });
   }
 }
 
@@ -1802,7 +1212,7 @@ function handleNoteContentEdit(e) {
     }
   } else {
     // In modalità canvas, salva lo stato della nota
-    const note = block.closest('.workspace-note');
+    const note = blockContent.closest('.workspace-note');
     if (note) {
       // Delay save to avoid too many operations
       if (note.saveTimeout) {
@@ -2664,7 +2074,7 @@ function updateConnectionPathStart() {
   // Ottieni la posizione del port rispetto al documento
   const portRect = connectionStartPort.getBoundingClientRect();
   
-  // Ottieni il workspace
+  // Ottieni la posizione del workspace
   const workspace = document.getElementById('workflowWorkspace');
   if (!workspace) {
     console.error('updateConnectionPathStart: workspace non trovato');
@@ -3412,64 +2822,22 @@ function updateAllConnections() {
 // Configura le interazioni per il workspace
 function setupWorkflowInteractions(workspace) {
   if (!workspace) {
-    console.error('setupWorkflowInteractions: workspace non trovato');
+    console.error('Workspace element not found for setting up interactions');
     return;
   }
   
-  console.log('Configurazione delle interazioni per il workspace', workspace.id);
+  console.log('Setting up workflow interactions on element:', workspace.id);
   
-  // Rimuovi eventuali listener precedenti per evitare duplicazioni
-  workspace.removeEventListener('wheel', handleMouseWheel);
+  // Aggiungi event listener per il disegno sul canvas
+  if (drawingCanvas) {
+    drawingCanvas.addEventListener('mousedown', handleDrawingStart);
+    drawingCanvas.addEventListener('mousemove', handleDrawingMove);
+    drawingCanvas.addEventListener('mouseup', handleDrawingEnd);
+    drawingCanvas.addEventListener('mouseleave', handleDrawingEnd);
+    console.log('Event listeners per il disegno configurati sul canvas');
+  }
   
-  // Aggiungi event listener per lo zoom con la rotella del mouse
-  // Usiamo 'false' per passive per poter chiamare preventDefault()
-  workspace.addEventListener('wheel', handleMouseWheel, { passive: false });
-  console.log('Event listener per wheel aggiunto al workspace');
-  
-  // Aggiungiamo anche un listener diretto per lo zoom (alternativa)
-  workspace.onwheel = function(e) {
-    console.log('DEBUG ONWHEEL: Evento onwheel rilevato direttamente');
-    // Deleghiamo la gestione alla funzione principale
-    handleMouseWheel(e);
-  };
-  
-  // Aggiungiamo un ulteriore controllo per il DOMMouseScroll (per Firefox più vecchi)
-  workspace.addEventListener('DOMMouseScroll', function(e) {
-    console.log('DEBUG DOMMOUSESCROLL: Evento DOMMouseScroll rilevato');
-    // Convertiamo l'evento in un formato compatibile con handleMouseWheel
-    const wheelEvent = {
-      preventDefault: e.preventDefault.bind(e),
-      stopPropagation: e.stopPropagation.bind(e),
-      clientX: e.clientX,
-      clientY: e.clientY,
-      deltaY: e.detail * 40, // Simuliamo deltaY da detail
-      target: e.target
-    };
-    handleMouseWheel(wheelEvent);
-  }, { passive: false });
-  
-  // Event listener per il click sul workspace (deseleziona le note)
-  workspace.addEventListener('click', handleWorkspaceClick);
-  
-  // Event listener per il doppio click sul workspace (crea una nuova nota)
-  workspace.addEventListener('dblclick', function(e) {
-    // Ignora il dblclick se è su una nota esistente
-    if (e.target.closest('.workspace-note')) return;
-    
-    // Calcola la posizione in base alle coordinate del mouse
-    const rect = workspace.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    
-    // Converti le coordinate del mouse nel sistema di coordinate del canvas
-    const canvasX = Math.round((mouseX - canvasOffsetX) / canvasScale);
-    const canvasY = Math.round((mouseY - canvasOffsetY) / canvasScale);
-    
-    // Crea una nuova nota alla posizione calcolata
-    createNewNote(canvasX, canvasY);
-  });
-  
-  // Implementazione diretta del panning sul workspace
+  // Event listener per il panning del canvas (mantiene quello esistente)
   workspace.addEventListener('mousedown', function(e) {
     // AGGIUNTO CONTROLLO PER MATITA ATTIVA
     if (isPencilActive) {
@@ -3709,6 +3077,22 @@ function setupWorkflowInteractions(workspace) {
   // Assicuriamoci che gli altri event listener globali siano attivi
   document.addEventListener('mousemove', handleNoteMouseMove);
   document.addEventListener('mouseup', handleNoteMouseUp);
+
+  if (!workspace) {
+    console.error('Workspace element not found for setting up interactions');
+    return;
+  }
+  
+  console.log('Setting up workflow interactions on element:', workspace.id);
+  
+  // Aggiungi event listener per il disegno sul canvas
+  if (drawingCanvas) {
+    drawingCanvas.addEventListener('mousedown', handleDrawingStart);
+    drawingCanvas.addEventListener('mousemove', handleDrawingMove);
+    drawingCanvas.addEventListener('mouseup', handleDrawingEnd);
+    drawingCanvas.addEventListener('mouseleave', handleDrawingEnd);
+    console.log('Event listeners per il disegno configurati sul canvas');
+  }
 }
 
 // Inizio il panning del canvas
@@ -6136,658 +5520,228 @@ function getPortCoordinates(element, portPosition) {
 
 // Funzione helper per salvare lo stato del workflow
 function saveWorkflowState(workflowId) {
-  // Verifica che la funzione esista nel contesto globale
-  if (window.workflowFunctions && typeof window.workflowFunctions.saveWorkflowState === 'function') {
-    window.workflowFunctions.saveWorkflowState(workflowId);
-  } else {
-    console.warn('Funzione saveWorkflowState non disponibile nel contesto globale');
+  if (!workflowId) {
+    console.error('Impossibile salvare lo stato: workflowId non specificato');
+    return;
   }
-}
-
-// Funzione per controllare le collisioni con altri elementi
-function checkConnectionCollisions(startPoint, endPoint, controlPoint1, controlPoint2) {
-  // Ottieni tutti gli elementi nel workspace
-  const workspaceElements = document.querySelectorAll('.workspace-note, .workspace-ai-node');
   
-  // Array per memorizzare gli elementi che intersecano la connessione
-  const intersectingElements = [];
-  
-  // Ottieni un array di punti lungo la curva di Bezier
-  const bezierPoints = getBezierPoints(startPoint, endPoint, controlPoint1, controlPoint2, 20);
-  
-  // Controlla ogni elemento per possibili intersezioni
-  workspaceElements.forEach(element => {
-    // Ottieni il bounding box dell'elemento
-    const rect = element.getBoundingClientRect();
-    
-    // Converti il bounding box nelle coordinate del canvas
-    const workspace = document.getElementById('workflowWorkspace');
-    if (!workspace) return;
-    
-    const workspaceRect = workspace.getBoundingClientRect();
-    
-    const elementBox = {
-      left: (rect.left - workspaceRect.left - canvasOffsetX) / canvasScale,
-      top: (rect.top - workspaceRect.top - canvasOffsetY) / canvasScale,
-      right: (rect.right - workspaceRect.left - canvasOffsetX) / canvasScale,
-      bottom: (rect.bottom - workspaceRect.top - canvasOffsetY) / canvasScale,
-      width: rect.width / canvasScale,
-      height: rect.height / canvasScale
-    };
-    
-    // Espandi leggermente il bounding box per il margine minimo richiesto (10px)
-    const expandedBox = {
-      left: elementBox.left - 10,
-      top: elementBox.top - 10,
-      right: elementBox.right + 10,
-      bottom: elementBox.bottom + 10,
-      width: elementBox.width + 20,
-      height: elementBox.height + 20
-    };
-    
-    // Controlla se qualsiasi punto della curva interseca il bounding box espanso
-    for (let i = 0; i < bezierPoints.length - 1; i++) {
-      const p1 = bezierPoints[i];
-      const p2 = bezierPoints[i + 1];
+  try {
+    // Raccogli tutte le note e le connessioni
+    const notes = Array.from(document.querySelectorAll('.workspace-note')).map(note => {
+      const noteId = note.id;
+      const noteTitle = note.querySelector('.note-title')?.textContent || '';
+      const noteRect = note.getBoundingClientRect();
+      const noteTransform = note.style.transform;
       
-      if (lineIntersectsRect(p1, p2, expandedBox)) {
-        intersectingElements.push({
-          element: element,
-          box: expandedBox
-        });
-        break; // Abbiamo trovato un'intersezione, passiamo al prossimo elemento
-      }
-    }
-  });
-  
-  return intersectingElements;
-}
-
-// Funzione di utilità per ottenere punti lungo una curva di Bezier
-function getBezierPoints(start, end, cp1, cp2, numPoints = 20) {
-  const points = [];
-  
-  for (let i = 0; i <= numPoints; i++) {
-    const t = i / numPoints;
-    const point = getBezierPoint(start, end, cp1, cp2, t);
-    points.push(point);
-  }
-  
-  return points;
-}
-
-// Funzione per calcolare un punto su una curva di Bezier cubica
-function getBezierPoint(start, end, cp1, cp2, t) {
-  const x = Math.pow(1 - t, 3) * start.x +
-            3 * Math.pow(1 - t, 2) * t * cp1.x +
-            3 * (1 - t) * Math.pow(t, 2) * cp2.x +
-            Math.pow(t, 3) * end.x;
-            
-  const y = Math.pow(1 - t, 3) * start.y +
-            3 * Math.pow(1 - t, 2) * t * cp1.y +
-            3 * (1 - t) * Math.pow(t, 2) * cp2.y +
-            Math.pow(t, 3) * end.y;
-            
-  return { x, y };
-}
-
-// Funzione per verificare se un segmento di linea interseca un rettangolo
-function lineIntersectsRect(p1, p2, rect) {
-  // Controlla se uno dei punti è all'interno del rettangolo
-  if (pointInRect(p1, rect) || pointInRect(p2, rect)) {
-    return true;
-  }
-  
-  // Controlla se la linea interseca uno dei lati del rettangolo
-  const rectLines = [
-    // Lato superiore
-    { p1: { x: rect.left, y: rect.top }, p2: { x: rect.right, y: rect.top } },
-    // Lato destro
-    { p1: { x: rect.right, y: rect.top }, p2: { x: rect.right, y: rect.bottom } },
-    // Lato inferiore
-    { p1: { x: rect.right, y: rect.bottom }, p2: { x: rect.left, y: rect.bottom } },
-    // Lato sinistro
-    { p1: { x: rect.left, y: rect.bottom }, p2: { x: rect.left, y: rect.top } }
-  ];
-  
-  for (const line of rectLines) {
-    if (linesIntersect(p1, p2, line.p1, line.p2)) {
-      return true;
-    }
-  }
-  
-  return false;
-}
-
-// Funzione per verificare se un punto è all'interno di un rettangolo
-function pointInRect(point, rect) {
-  return point.x >= rect.left && point.x <= rect.right && 
-         point.y >= rect.top && point.y <= rect.bottom;
-}
-
-// Funzione per verificare se due segmenti di linea si intersecano
-function linesIntersect(p1, p2, p3, p4) {
-  // Calcola i determinanti
-  const d1 = direction(p3, p4, p1);
-  const d2 = direction(p3, p4, p2);
-  const d3 = direction(p1, p2, p3);
-  const d4 = direction(p1, p2, p4);
-  
-  // Verifica se i segmenti si intersecano
-  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && 
-      ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
-    return true;
-  }
-  
-  // Gestione dei casi speciali: se i punti sono collineari
-  if (d1 === 0 && pointOnSegment(p3, p4, p1)) return true;
-  if (d2 === 0 && pointOnSegment(p3, p4, p2)) return true;
-  if (d3 === 0 && pointOnSegment(p1, p2, p3)) return true;
-  if (d4 === 0 && pointOnSegment(p1, p2, p4)) return true;
-  
-  return false;
-}
-
-// Funzione di utilità per il calcolo della direzione di tre punti
-function direction(p1, p2, p3) {
-  return ((p3.x - p1.x) * (p2.y - p1.y)) - ((p2.x - p1.x) * (p3.y - p1.y));
-}
-
-// Funzione per verificare se un punto si trova su un segmento di linea
-function pointOnSegment(p1, p2, p) {
-  return (p.x <= Math.max(p1.x, p2.x) && p.x >= Math.min(p1.x, p2.x) && 
-          p.y <= Math.max(p1.y, p2.y) && p.y >= Math.min(p1.y, p2.y));
-}
-
-// Funzione per verificare se un punto è sul segmento
-function pointOnSegment(p1, p2, p) {
-  return (p.x <= Math.max(p1.x, p2.x) && p.x >= Math.min(p1.x, p2.x) && 
-          p.y <= Math.max(p1.y, p2.y) && p.y >= Math.min(p1.y, p2.y));
-}
-
-// Funzione per aggiornare tutte le etichette delle connessioni
-function updateAllConnectionLabels() {
-  if (!connections || connections.length === 0) {
-    return;
-  }
-  
-  connections.forEach(connection => {
-    if (connection.labelElement && connection.label) {
-      updateLabelPosition(connection);
-    }
-  });
-}
-
-// Funzione per aggiornare l'indicatore di posizione nel workspace
-function updatePositionIndicator() {
-  const positionIndicator = document.getElementById('positionIndicator');
-  const workspace = document.getElementById('workflowWorkspace');
-  
-  if (!positionIndicator || !workspace) {
-    return;
-  }
-  
-  // Calcola il centro attuale della viewport nelle coordinate del canvas
-  const viewportWidth = workspace.clientWidth;
-  const viewportHeight = workspace.clientHeight;
-  
-  // Il centro della viewport nelle coordinate del canvas
-  const centerX = Math.round((-canvasOffsetX + viewportWidth / 2) / canvasScale);
-  const centerY = Math.round((-canvasOffsetY + viewportHeight / 2) / canvasScale);
-  
-  // Aggiorna il testo dell'indicatore di posizione
-  positionIndicator.textContent = `Posizione: (${centerX}, ${centerY}) | Zoom: ${Math.round(canvasScale * 100)}%`;
-  
-  // Assicura che l'indicatore sia visibile
-  positionIndicator.classList.add('visible');
-  
-  // Imposta un timeout per nascondere l'indicatore dopo un certo periodo
-  clearTimeout(window.positionIndicatorTimeout);
-  window.positionIndicatorTimeout = setTimeout(() => {
-    positionIndicator.classList.remove('visible');
-  }, 1500);
-}
-
-// Esponi la funzione updatePositionIndicator globalmente
-window.updatePositionIndicator = updatePositionIndicator;
-
-// Variabile per contatore Kanban Board
-let kanbanBoardCounter = 0;
-
-// Funzione per creare una nuova Kanban Board
-function handleCreateKanbanBoard() {
-  console.log('Creazione di una nuova Kanban Board');
-
-  const workspaceContent = document.getElementById('workflowContent');
-  if (!workspaceContent) {
-    console.error('Contenitore del workspace (workflowContent) non trovato per Kanban Board');
-    return null;
-  }
-
-  kanbanBoardCounter++;
-  const boardId = `kanban-board-${Date.now()}-${kanbanBoardCounter}`;
-
-  const kanbanBoard = document.createElement('div');
-  kanbanBoard.className = 'kanban-board';
-  kanbanBoard.id = boardId;
-
-  // Calcola posizione centrale nel viewport attuale
-  const workspace = document.getElementById('workflowWorkspace');
-  let x = 200; // Default x
-  let y = 200; // Default y
-  if (workspace) {
-    const viewportWidth = workspace.clientWidth;
-    const viewportHeight = workspace.clientHeight;
-    x = Math.round((-canvasOffsetX + viewportWidth / 2) / canvasScale) - 200; // Spostato un po' a sinistra per non sovrapporsi al centro esatto
-    y = Math.round((-canvasOffsetY + viewportHeight / 2) / canvasScale) - 150;
-  }
-
-  kanbanBoard.style.transform = `translate(${x}px, ${y}px)`;
-  kanbanBoard.style.width = 'auto'; // Larghezza automatica basata sulle colonne
-  kanbanBoard.style.minWidth = '450px'; // Aumentata larghezza minima per la board
-  kanbanBoard.style.minHeight = '350px'; // Aumentata altezza minima di default
-  kanbanBoard.style.maxWidth = 'calc(100% - 40px)'; // Max larghezza nel viewport
-
-  // Header della Kanban Board
-  const boardHeader = document.createElement('div');
-  boardHeader.className = 'kanban-board-header';
-  
-  const boardTitle = document.createElement('span');
-  boardTitle.className = 'kanban-board-title-text';
-  boardTitle.textContent = `Kanban Board ${kanbanBoardCounter}`;
-  makeEditable(boardTitle, 'kanban-board-title-input', (newTitle) => {
-    console.log(`Titolo board ${boardId} aggiornato a: ${newTitle}`);
-    // Qui si potrebbe aggiornare un oggetto stato della board
-  });
-  boardHeader.appendChild(boardTitle);
-
-  // Container per i pulsanti d'azione della board (layout orizzontale)
-  const boardActionsContainer = document.createElement('div');
-  boardActionsContainer.className = 'kanban-board-actions'; // Per stilizzare il layout
-
-  const addColumnBtn = document.createElement('button');
-  addColumnBtn.className = 'kanban-add-column-btn';
-  addColumnBtn.innerHTML = '<i class="fas fa-plus"></i> Aggiungi Colonna';
-  addColumnBtn.title = 'Aggiungi una nuova colonna alla board';
-  addColumnBtn.addEventListener('click', () => {
-    createKanbanColumn(kanbanBoard);
-  });
-  boardActionsContainer.appendChild(addColumnBtn);
-
-  // Pulsante per eliminare l'intera board
-  const deleteBoardBtn = document.createElement('button');
-  deleteBoardBtn.className = 'kanban-board-delete-btn';
-  deleteBoardBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
-  deleteBoardBtn.title = 'Elimina questa Kanban Board';
-  deleteBoardBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (kanbanBoard.parentNode) {
-      kanbanBoard.parentNode.removeChild(kanbanBoard);
-      console.log(`Kanban Board ${boardId} eliminata.`);
-      // TODO: Aggiornare lo stato/modello dati se la board è salvata
-    }
-  });
-  boardActionsContainer.appendChild(deleteBoardBtn);
-
-  boardHeader.appendChild(boardActionsContainer); // Aggiunge il container dei pulsanti
-  
-  kanbanBoard.appendChild(boardHeader);
-
-  // Container per le colonne
-  const columnsContainer = document.createElement('div');
-  columnsContainer.className = 'kanban-columns-container';
-  kanbanBoard.appendChild(columnsContainer);
-
-  workspaceContent.appendChild(kanbanBoard);
-
-  // Logica di trascinamento della board (esistente)
-  boardHeader.addEventListener('mousedown', (e) => {
-    if (e.target.classList.contains('kanban-add-column-btn') || e.target.closest('.kanban-add-column-btn')) {
-      return; // Non iniziare il drag se si clicca il pulsante aggiungi colonna
-    }
-    if (e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    let draggedBoard = kanbanBoard;
-    const rect = draggedBoard.getBoundingClientRect();
-    let dragOffsetXBoard = e.clientX - rect.left;
-    let dragOffsetYBoard = e.clientY - rect.top;
-
-    draggedBoard.classList.add('dragging');
-    draggedBoard.style.zIndex = '1001'; // Sopra le note
-
-    function handleBoardMouseMove(moveEvent) {
-      if (!draggedBoard) return;
-      moveEvent.preventDefault();
-
-      const workspaceRect = workspace.getBoundingClientRect();
-      const mouseXRelativeToWorkspace = moveEvent.clientX - workspaceRect.left;
-      const mouseYRelativeToWorkspace = moveEvent.clientY - workspaceRect.top;
-      const mouseXInCanvas = (mouseXRelativeToWorkspace - canvasOffsetX) / canvasScale;
-      const mouseYInCanvas = (mouseYRelativeToWorkspace - canvasOffsetY) / canvasScale;
-      const boardX = mouseXInCanvas - dragOffsetXBoard / canvasScale;
-      const boardY = mouseYInCanvas - dragOffsetYBoard / canvasScale;
-
-      draggedBoard.style.transform = `translate(${boardX}px, ${boardY}px)`;
-      // Qui non aggiorniamo connessioni perché le board kanban potrebbero non averle direttamente
-    }
-
-    function handleBoardMouseUp() {
-      if (!draggedBoard) return;
-      draggedBoard.classList.remove('dragging');
-      draggedBoard.style.zIndex = '';
-      // Salvare lo stato della board (da implementare)
-      console.log(`Kanban board ${draggedBoard.id} moved to ${draggedBoard.style.transform}`);
-      draggedBoard = null;
-      document.removeEventListener('mousemove', handleBoardMouseMove);
-      document.removeEventListener('mouseup', handleBoardMouseUp);
-    }
-
-    document.addEventListener('mousemove', handleBoardMouseMove);
-    document.addEventListener('mouseup', handleBoardMouseUp);
-  });
-
-  console.log(`Kanban Board creata con ID: ${boardId} in posizione x:${x}, y:${y}`);
-  return kanbanBoard;
-}
-
-// Variabile per contatore Colonne Kanban
-let kanbanColumnCounter = 0;
-
-// Funzione per creare una nuova Colonna Kanban
-function createKanbanColumn(boardElement, title = "Nuova Colonna") {
-  if (!boardElement) {
-    console.error("Elemento board non fornito per createKanbanColumn");
-    return null;
-  }
-  const columnsContainer = boardElement.querySelector('.kanban-columns-container');
-  if (!columnsContainer) {
-    console.error("Contenitore colonne non trovato nella board:", boardElement.id);
-    return null;
-  }
-
-  kanbanColumnCounter++;
-  const columnId = `kanban-column-${Date.now()}-${kanbanColumnCounter}`;
-
-  const columnElement = document.createElement('div');
-  columnElement.className = 'kanban-column';
-  columnElement.id = columnId;
-
-  const columnHeader = document.createElement('div');
-  columnHeader.className = 'kanban-column-header'; // Nuova classe per l'header della colonna
-
-  const columnTitleText = document.createElement('span');
-  columnTitleText.className = 'kanban-column-title-text';
-  columnTitleText.textContent = title;
-  makeEditable(columnTitleText, 'kanban-column-title-input', (newTitle) => {
-    console.log(`Titolo colonna ${columnId} aggiornato a: ${newTitle}`);
-    // Qui si potrebbe aggiornare un oggetto stato della colonna
-  });
-  columnHeader.appendChild(columnTitleText);
-
-  const addCardBtn = document.createElement('button');
-  addCardBtn.className = 'kanban-add-card-btn';
-  addCardBtn.innerHTML = '<i class="fas fa-plus"></i>';
-  addCardBtn.title = 'Aggiungi una nuova card a questa colonna';
-  addCardBtn.addEventListener('click', (e) => {
-    e.stopPropagation(); // Evita che il click si propaghi ad altri handler (es. drag colonna)
-    createKanbanCard(columnElement);
-  });
-  columnHeader.appendChild(addCardBtn);
-
-  // Pulsante per eliminare la colonna
-  const deleteColumnBtn = document.createElement('button');
-  deleteColumnBtn.className = 'kanban-column-delete-btn';
-  deleteColumnBtn.innerHTML = '<i class="fas fa-trash"></i>'; // Icona di cestino
-  deleteColumnBtn.title = 'Elimina questa colonna';
-  deleteColumnBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (columnElement.parentNode) {
-      columnElement.parentNode.removeChild(columnElement);
-      console.log(`Colonna ${columnId} eliminata.`);
-      // TODO: Aggiornare lo stato/modello dati
-    }
-  });
-  columnHeader.appendChild(deleteColumnBtn);
-
-  columnElement.appendChild(columnHeader);
-
-  const cardsContainer = document.createElement('div');
-  cardsContainer.className = 'kanban-column-cards';
-
-  // Event listener per D&D sulle colonne (cardsContainer)
-  cardsContainer.addEventListener('dragover', (e) => {
-    e.preventDefault(); // Necessario per permettere il drop
-    e.dataTransfer.dropEffect = 'move';
-    cardsContainer.classList.add('drag-over-active');
-  });
-
-  cardsContainer.addEventListener('dragenter', (e) => {
-    e.preventDefault();
-    cardsContainer.classList.add('drag-over-active');
-  });
-
-  cardsContainer.addEventListener('dragleave', (e) => {
-    // Controlla se il mouse sta lasciando l'elemento stesso o un suo figlio
-    // Questo evita sfarfallio se ci sono elementi figli nella drop zone
-    if (e.currentTarget.contains(e.relatedTarget)) return;
-    cardsContainer.classList.remove('drag-over-active');
-  });
-
-  cardsContainer.addEventListener('drop', (e) => {
-    e.preventDefault();
-    e.stopPropagation(); // Importante per non far scattare altri drop listener (es. workspace)
-    cardsContainer.classList.remove('drag-over-active');
-
-    const cardId = e.dataTransfer.getData('text/plain');
-    const draggedCardElement = document.getElementById(cardId);
-
-    if (draggedCardElement && draggedCardElement.parentNode !== cardsContainer) {
-      // TODO: Implementare logica per inserire la card nella posizione corretta (non solo append)
-      // Per ora, la appende semplicemente alla fine della colonna.
-      // Potremmo determinare la card più vicina al punto di drop e inserirla prima/dopo.
-      cardsContainer.appendChild(draggedCardElement);
-      console.log(`Card ${cardId} droppata nella colonna ${columnElement.id}`);
-      // Qui si dovrebbe aggiornare lo stato (es. l'array di card della colonna nel modello dati)
-    }
-  });
-
-  columnElement.appendChild(cardsContainer);
-
-  columnsContainer.appendChild(columnElement);
-  console.log(`Colonna Kanban creata con ID: ${columnId} nella board ${boardElement.id}`);
-  return columnElement;
-}
-
-// Variabile per contatore Card Kanban
-let kanbanCardCounter = 0;
-
-// Funzione per creare una nuova Card Kanban
-function createKanbanCard(columnElement, content = "Nuova Card") {
-  if (!columnElement) {
-    console.error("Elemento colonna non fornito per createKanbanCard");
-    return null;
-  }
-  const cardsContainer = columnElement.querySelector('.kanban-column-cards');
-  if (!cardsContainer) {
-    console.error("Contenitore card non trovato nella colonna:", columnElement.id);
-    return null;
-  }
-
-  kanbanCardCounter++;
-  const cardId = `kanban-card-${Date.now()}-${kanbanCardCounter}`;
-
-  const cardElement = document.createElement('div');
-  cardElement.className = 'kanban-card';
-  cardElement.id = cardId;
-  console.log(`[LOG CREATE CARD] Card element ${cardId} creato.`);
-
-  // Checkbox per la card
-  const cardCheckbox = document.createElement('input');
-  cardCheckbox.type = 'checkbox';
-  cardCheckbox.className = 'kanban-card-checkbox';
-  cardCheckbox.addEventListener('change', (e) => {
-    e.stopPropagation(); // Evita che il click sulla checkbox si propaghi ad altri handler
-    if (cardCheckbox.checked) {
-      cardElement.classList.add('completed');
-    } else {
-      cardElement.classList.remove('completed');
-    }
-    // TODO: Salvare lo stato della checkbox nel modello dati della card
-    console.log(`Checkbox per card ${cardId} impostata a: ${cardCheckbox.checked}`);
-  });
-  cardElement.appendChild(cardCheckbox);
-
-  // Aggiungi un listener mousedown DIRETTO sulla card per debug
-  cardElement.addEventListener('mousedown', (e) => {
-    console.log(`[LOG CARD MOUSE DOWN] Card ID: ${cardElement.id}, Target: ${e.target.className}. Button: ${e.button}`);
-    // Impedisci che il mousedown si propaghi al canvas, che altrimenti inizierebbe il panning.
-    // L'evento dragstart gestirà l'inizio effettivo del drag.
-    e.stopPropagation();
-  });
-
-  console.log(`[LOG CREATE CARD] Impostando draggable=true per ${cardId}`);
-  cardElement.draggable = true; 
-
-  console.log(`[LOG CREATE CARD] Aggiungendo listener dragstart per ${cardId}`);
-  cardElement.addEventListener('dragstart', (e) => {
-    console.log(`[LOG CARD DRAGSTART] Card ID: ${cardElement.id}. Target: ${e.target.className}`);
-    e.stopPropagation(); 
-    e.dataTransfer.setData('text/plain', cardElement.id);
-    e.dataTransfer.effectAllowed = 'move';
-    
-    cardElement.classList.add('dragging');
-    isCardBeingDragged = true; 
-    console.log(`[LOG CARD DRAGSTART] isCardBeingDragged SET TO TRUE. Card ID: ${cardElement.id}`);
-    // document.body.classList.add('card-is-dragging'); 
-
-    // console.log(`Dragging card ${cardElement.id}, isCardBeingDragged: ${isCardBeingDragged}`); // Vecchio log
-  });
-
-  cardElement.addEventListener('dragend', (e) => {
-    console.log(`[LOG CARD DRAGEND] Card ID: ${cardElement.id}. Target: ${e.target.className}`);
-    cardElement.classList.remove('dragging');
-    isCardBeingDragged = false; 
-    console.log(`[LOG CARD DRAGEND] isCardBeingDragged SET TO FALSE. Card ID: ${cardElement.id}`);
-    // document.body.classList.remove('card-is-dragging');
-    
-    document.querySelectorAll('.kanban-column-cards.drag-over-active').forEach(col => {
-      col.classList.remove('drag-over-active');
+      // Estrai posizione e dimensioni
+      const tx = extractTranslateX(noteTransform);
+      const ty = extractTranslateY(noteTransform);
+      
+      // Raccogli tutti i blocchi nella nota
+      const blocks = Array.from(note.querySelectorAll('.note-block')).map(block => {
+        return {
+          id: block.id,
+          type: block.dataset.type || 'paragraph',
+          content: block.querySelector('.block-content')?.innerHTML || ''
+        };
+      });
+      
+      // Recupera altre proprietà specifiche della nota...
+      
+      return {
+        id: noteId,
+        title: noteTitle,
+        x: tx,
+        y: ty,
+        width: parseFloat(note.style.width) || 300,
+        height: parseFloat(note.style.height) || 180,
+        blocks: blocks,
+        // Altre proprietà...
+      };
     });
-    console.log(`Drag ended for card ${cardElement.id}`);
-  });
-
-  const cardContentText = document.createElement('div');
-  cardContentText.className = 'kanban-card-content-text';
-  cardContentText.textContent = content;
-  makeEditable(cardContentText, 'kanban-card-content-input', (newContent) => {
-    console.log(`Contenuto card ${cardId} aggiornato a: ${newContent}`);
-    // Qui si potrebbe aggiornare un oggetto stato della card
-  });
-  // cardElement.appendChild(cardContentText); // Il contenuto ora va in un wrapper
-
-  // Wrapper per contenuto e testo (per allineare con checkbox)
-  const cardContentWrapper = document.createElement('div');
-  cardContentWrapper.className = 'kanban-card-content-wrapper';
-  cardContentWrapper.appendChild(cardContentText);
-  cardElement.appendChild(cardContentWrapper);
-
-  // Pulsante per eliminare la card
-  const deleteCardBtn = document.createElement('button');
-  deleteCardBtn.className = 'kanban-card-delete-btn';
-  deleteCardBtn.innerHTML = '<i class="fas fa-trash-alt"></i>'; // Icona cestino
-  deleteCardBtn.title = 'Elimina questa card';
-  deleteCardBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (cardElement.parentNode) {
-      cardElement.parentNode.removeChild(cardElement);
-      console.log(`Card ${cardId} eliminata.`);
-      // TODO: Aggiornare lo stato/modello dati
-    }
-  });
-  cardElement.appendChild(deleteCardBtn);
-
-  // Eventuale header/azioni per la card qui...
-
-  cardsContainer.appendChild(cardElement);
-  console.log(`Card Kanban creata con ID: ${cardId} nella colonna ${columnElement.id}`);
-  return cardElement;
-}
-
-// Funzione helper per rendere un elemento di testo editabile
-function makeEditable(textElement, inputClassName = 'kanban-editable-input', onSaveCallback) {
-  textElement.addEventListener('dblclick', (e) => {
-    console.log(`[LOG MAKE EDITABLE DBLCLICK] Element: ${textElement.className}, Target: ${e.target.className}`);
-    e.stopPropagation(); 
-
-    const oldValue = textElement.textContent;
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = inputClassName;
-    input.value = oldValue;
     
-    textElement.style.display = 'none'; 
-    textElement.parentNode.insertBefore(input, textElement.nextSibling); 
-    input.focus();
-    input.select();
-
-    function saveChanges(triggeredByEnter = false) {
-      const newValue = input.value.trim();
-      textElement.textContent = newValue === '' ? oldValue : newValue;
-      textElement.style.display = ''; 
-      if (input.parentNode) {
-        input.parentNode.removeChild(input);
-      }
-      if (onSaveCallback && newValue !== '' && newValue !== oldValue) {
-        onSaveCallback(newValue);
-      }
-      input.removeEventListener('blur', saveChangesOnBlur);
-      input.removeEventListener('keydown', handleKeyDown);
+    // Raccogli tutte le connessioni
+    const serializedConnections = window.connections.map(conn => {
+      // Estrai solo le informazioni necessarie per ricreare la connessione
+      return {
+        id: conn.id,
+        startElementId: conn.startElementId,
+        endElementId: conn.endElementId,
+        startPortPosition: conn.startPortPosition,
+        endPortPosition: conn.endPortPosition,
+        style: conn.style || 'default',
+        label: conn.label || ''
+      };
+    });
+    
+    // Salva lo stato del canvas
+    const canvasState = {
+      scale: canvasScale,
+      offsetX: canvasOffsetX,
+      offsetY: canvasOffsetY
+    };
+    
+    // Salva lo stato dei disegni
+    let drawingData = null;
+    if (drawingCanvas) {
+      drawingData = drawingCanvas.toDataURL();
     }
-
-    const saveChangesOnBlur = () => {
-        saveChanges(false);
+    
+    // Crea l'oggetto stato completo
+    const state = {
+      version: '1.0',
+      timestamp: Date.now(),
+      notes: notes,
+      connections: serializedConnections,
+      canvas: canvasState,
+      drawingData: drawingData
     };
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Enter') {
-        saveChanges(true);
-      } else if (event.key === 'Escape') {
-        textElement.textContent = oldValue; 
-        textElement.style.display = '';
-        if (input.parentNode) {
-          input.parentNode.removeChild(input);
-        }
-        input.removeEventListener('blur', saveChangesOnBlur);
-        input.removeEventListener('keydown', handleKeyDown);
-      }
-    };
-
-    input.addEventListener('blur', saveChangesOnBlur);
-    input.addEventListener('keydown', handleKeyDown);
-  });
+    
+    // Salva nel localStorage
+    localStorage.setItem(`workflow_${workflowId}`, JSON.stringify(state));
+    console.log(`Workflow state saved for ${workflowId}`);
+    
+    return true;
+  } catch (error) {
+    console.error('Error saving workflow state:', error);
+    return false;
+  }
 }
 
+// Modifica la funzione per caricare i disegni
+function loadWorkflowState(workflowId) {
+  if (!workflowId) {
+    console.error('Impossibile caricare lo stato: workflowId non specificato');
+    return false;
+  }
+  
+  try {
+    // Recupera lo stato dal localStorage
+    const stateJSON = localStorage.getItem(`workflow_${workflowId}`);
+    if (!stateJSON) {
+      console.log(`No saved state found for workflow: ${workflowId}`);
+      return false;
+    }
+    
+    const state = JSON.parse(stateJSON);
+    console.log(`Caricato stato per il workflow: ${workflowId}`, state);
+    
+    // Pulisci prima le note esistenti
+    const workspaceContent = document.getElementById('workflowContent');
+    if (workspaceContent) {
+      const existingNotes = workspaceContent.querySelectorAll('.workspace-note');
+      existingNotes.forEach(note => note.remove());
+    }
+    
+    // Pulisci le connessioni esistenti
+    window.connections = [];
+    const connectionsContainer = document.getElementById('connectionsContainer');
+    if (connectionsContainer) {
+      connectionsContainer.innerHTML = '';
+    }
+    
+    // Imposta lo stato del canvas
+    if (state.canvas) {
+      canvasScale = state.canvas.scale || 1;
+      canvasOffsetX = state.canvas.offsetX || 0;
+      canvasOffsetY = state.canvas.offsetY || 0;
+      updateCanvasTransform();
+    }
+    
+    // Carica i disegni se presenti
+    if (state.drawingData && drawingCanvas && drawingCtx) {
+      const img = new Image();
+      img.onload = function() {
+        drawingCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+        drawingCtx.drawImage(img, 0, 0);
+      };
+      img.src = state.drawingData;
+    }
+    
+    // Ricrea le note
+    if (state.notes && Array.isArray(state.notes)) {
+      state.notes.forEach(noteData => {
+        // Crea la nota...
+        // ...
+      });
+    }
+    
+    // Ricrea le connessioni
+    if (state.connections && Array.isArray(state.connections)) {
+      state.connections.forEach(connData => {
+        // Ricrea la connessione...
+        // ...
+      });
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error loading workflow state:', error);
+    return false;
+  }
+}
+
+function handleDrawingEnd(e) {
+  if (!isDrawing || !isPencilActive) return;
+  console.log('[DRW_END]: Mouse up/leave on drawingCanvas. Target:', e.target.id);
+  isDrawing = false;
+  e.stopPropagation();
+  e.preventDefault(); // AGGIUNTO
+}
+
+// Funzione per convertire le coordinate del mouse in coordinate del canvas
+function getMousePosOnDrawingCanvas(e) {
+  if (!drawingCanvas) return { x: 0, y: 0 };
+  
+  const workspaceArea = document.getElementById('workflowWorkspace');
+  const workspaceRect = workspaceArea.getBoundingClientRect();
+  
+  // Calcola la posizione relativa del mouse rispetto al workspace
+  const mouseX = e.clientX - workspaceRect.left;
+  const mouseY = e.clientY - workspaceRect.top;
+  
+  // Converti la posizione del mouse in coordinate del canvas tenendo conto di pan e zoom
+  const canvasX = (mouseX - canvasOffsetX) / canvasScale;
+  const canvasY = (mouseY - canvasOffsetY) / canvasScale;
+  
+  return { x: canvasX, y: canvasY };
+}
+
+// Aggiungo le funzioni di gestione del disegno nella posizione corretta, prima di setupWorkflowInteractions
+
+// Funzione per convertire le coordinate del mouse in coordinate del canvas
+function getMousePosOnDrawingCanvas(e) {
+  if (!drawingCanvas) return { x: 0, y: 0 };
+  
+  const workspaceArea = document.getElementById('workflowWorkspace');
+  const workspaceRect = workspaceArea.getBoundingClientRect();
+  
+  // Calcola la posizione relativa del mouse rispetto al workspace
+  const mouseX = e.clientX - workspaceRect.left;
+  const mouseY = e.clientY - workspaceRect.top;
+  
+  // Converti la posizione del mouse in coordinate del canvas tenendo conto di pan e zoom
+  const canvasX = (mouseX - canvasOffsetX) / canvasScale;
+  const canvasY = (mouseY - canvasOffsetY) / canvasScale;
+  
+  return { x: canvasX, y: canvasY };
+}
+
+// Funzione per iniziare il disegno
 function handleDrawingStart(e) {
   if (!isPencilActive || e.button !== 0) return; // Solo tasto sinistro e matita attiva
   isDrawing = true;
   const coords = getMousePosOnDrawingCanvas(e);
   console.log('[DRW_START]: Mouse down on drawingCanvas. Coords:', coords, 'Color:', currentDrawingColor, 'Stroke:', currentDrawingStrokeWidth, 'Target:', e.target.id);
-
-  // Test: disegna un piccolo rettangolo verde al punto del click
-  if (drawingCtx) {
-    drawingCtx.fillStyle = 'rgba(0,255,0,0.7)'; // Verde semi-trasparente
-    drawingCtx.fillRect(coords.x - 3, coords.y - 3, 6, 6);
-  }
   
   drawingCtx.beginPath();
   drawingCtx.moveTo(coords.x, coords.y);
   lastDrawingPoint = coords;
   e.stopPropagation(); 
-  e.preventDefault(); // AGGIUNTO per prevenire azioni di default
+  e.preventDefault();
 }
 
+// Funzione per disegnare durante il movimento del mouse
 function handleDrawingMove(e) {
   if (!isDrawing || !isPencilActive) return;
   const coords = getMousePosOnDrawingCanvas(e);
@@ -6801,16 +5755,30 @@ function handleDrawingMove(e) {
   drawingCtx.stroke();
   
   drawingCtx.beginPath(); 
-drawingCtx.moveTo(coords.x, coords.y);
+  drawingCtx.moveTo(coords.x, coords.y);
   lastDrawingPoint = coords;
   e.stopPropagation();
-  e.preventDefault(); // AGGIUNTO
+  e.preventDefault();
 }
 
+// Funzione per terminare il disegno
 function handleDrawingEnd(e) {
   if (!isDrawing || !isPencilActive) return;
-  console.log('[DRW_END]: Mouse up/leave on drawingCanvas. Target:', e.target.id);
+  console.log('[DRW_END]: Mouse up/leave on drawingCanvas. Target:', e.target.id, 'returning to non-clicked state');
   isDrawing = false;
   e.stopPropagation();
-  e.preventDefault(); // AGGIUNTO
+  e.preventDefault();
+  
+  // Salva lo stato del workflow per preservare il disegno
+  if (typeof window.workflowFunctions.saveWorkflowState === 'function' && window.currentWorkflowId) {
+    window.workflowFunctions.saveWorkflowState(window.currentWorkflowId);
+  }
+}
+
+// Configura le interazioni per il workspace
+function setupWorkflowInteractions(workspace) {
+  if (!workspace) {
+    console.error('Workspace element not found for setting up interactions');
+    return;
+  }
 }

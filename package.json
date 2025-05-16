@@ -5,6 +5,7 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
+    "prestart": "npm run build:protos",
     "dev": "electron . --dev",
     "build": "electron-builder",
     "pack": "electron-builder --dir",
@@ -13,8 +14,9 @@
     "test": "echo \"No tests specified yet\"",
     "postinstall": "electron-builder install-app-deps",
     "clean": "rimraf dist",
-    "prebuild": "npm run clean",
-    "release": "electron-builder -p always"
+    "prebuild": "npm run clean && npm run build:protos",
+    "release": "electron-builder -p always",
+    "build:protos": "node -e \"require('fs').mkdirSync('src/common/generated_protos', { recursive: true })\" && pbjs -t static-module -w commonjs -o src/common/generated_protos/workflow_pb.js src/common/protos/workflow.proto && pbts -o src/common/generated_protos/workflow_pb.d.ts src/common/generated_protos/workflow_pb.js"
   },
   "keywords": [
     "synapse",
@@ -53,9 +55,12 @@
     "google-auth-library": "^9.15.1",
     "gridstack": "^12.1.1",
     "highlight.js": "^11.9.0",
+    "html2canvas": "^1.4.1",
+    "konva": "^9.3.20",
     "lowdb": "^1.0.0",
     "marked": "^9.1.5",
-    "protobufjs": "^7.5.0",
+    "protobufjs": "^7.5.1",
+    "protobufjs-cli": "^1.1.3",
     "sortablejs": "^1.15.6",
     "systeminformation": "^5.25.11"
   },
